@@ -234,18 +234,6 @@ argument_specs:
         default: 600
         description: "systemd RandomizedDelaySec for the backup timer."
 
-      odoo_offsite_reminder:
-        type: "str"
-        required: false
-        default: "3-monthly"
-        description: "Cadence of the offsite-copy reminder (documentation only)."
-
-      odoo_offsite_target:
-        type: "str"
-        required: false
-        default: ""
-        description: "Operator-confirmed offsite copy target (empty until decided)."
-
       odoo_initialize_database:
         type: "bool"
         required: false

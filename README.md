@@ -149,12 +149,6 @@ not install packages or start services.
   Settings → Peppol Electronic Invoicing, using the correct EAS scheme and
   identifier for your jurisdiction). The role only installs the modules and
   creates the journals.
-- **Offsite copies**: local dumps live under `odoo_backup_dir`. Copying them
-  off-site is manual. Set `odoo_offsite_target` and print the reminder with:
-
-  ```console
-  $ ansible-playbook playbook.yml --tags odoo-offsite-reminder
-  ```
 
 ## Publishing to Ansible Galaxy
 

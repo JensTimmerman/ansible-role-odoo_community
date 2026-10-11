@@ -58,13 +58,6 @@
     - "odoo"
     - "backup"
 
-- name: "Include the offsite-copy reminder (on-demand)"
-  ansible.builtin.include_tasks: "backup_reminder.yml"
-  when: "odoo_manage_backups | bool"
-  tags:
-    - "never"
-    - "odoo-offsite-reminder"
-
 - name: "Verify odoo role"
   ansible.builtin.include_tasks: "verify.yml"
   when: "odoo_run_verify | bool"

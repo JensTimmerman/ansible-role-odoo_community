@@ -3,8 +3,7 @@
 # Backups (optional).
 #
 # Daily dump: the Odoo database (custom-format pg_dump) + the filestore into
-# odoo_backup_dir, scheduled by a systemd timer. Retention is local; copying
-# data off-site is an operator action (see tasks/backup_reminder.yml).
+# odoo_backup_dir, scheduled by a systemd timer. Retention is local.
 #
 # With loopback trust auth pg_dump needs no password. When odoo_db_password is
 # set, the rendered (host-local, operator-owned) backup script exports

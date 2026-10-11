@@ -141,14 +141,6 @@ odoo_backup_retention_days: 7
 odoo_backup_oncalendar: "*-*-* 03:15:00"
 odoo_backup_randomized_delay_sec: 600
 
-# Offsite copy reminder cadence (documentation/reminder only; the role never
-# copies data off-site).
-odoo_offsite_reminder: "3-monthly"
-
-# Offsite copy target. Empty by default so the reminder tells the operator to
-# confirm it rather than inventing a host.
-odoo_offsite_target: ""
-
 # --- Feature flags / verification -----------------------------------------
 
 odoo_manage_postgresql: true

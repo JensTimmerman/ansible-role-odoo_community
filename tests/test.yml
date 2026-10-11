@@ -7,7 +7,7 @@
   connection: "local"
   gather_facts: true
   roles:
-    - role: "odoo"
+    - role: "jenstimmerman.odoo_community"
       vars:
         odoo_config_admin_passwd: "example-not-a-real-secret"
         odoo_base_url: "https://odoo.example.com"
