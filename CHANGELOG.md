@@ -4,6 +4,16 @@ All notable changes to this role are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Relicensed the role to **GPL-3.0-or-later** (the previous permissive
+  license no longer applies): replaced `LICENSE` with the full GNU GPL v3
+  text, set `galaxy_info.license` to `GPL-3.0-or-later` in `meta/main.yml`,
+  and updated the README license section (noting that the role installs Odoo
+  Community, which remains under its own upstream LGPLv3 terms).
+
 ## [1.0.0] - 2026-10-11
 
 ### Added
@@ -22,6 +32,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Role argument specs (`meta/argument_specs.yml`), molecule default scenario,
   `tests/` smoke playbook, yamllint / ansible-lint configuration and a GitHub
   Actions CI workflow.
-- README with required variables, quick start and operator runbook; MIT license.
+- README with required variables, quick start and operator runbook.
 
 [1.0.0]: https://github.com/JensTimmerman/ansible-role-odoo_community/releases/tag/v1.0.0

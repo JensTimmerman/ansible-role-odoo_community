@@ -172,4 +172,12 @@ Owner actions (require credentials not available in the build environment):
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+This role is licensed under the **GNU General Public License v3.0 or later**
+(`GPL-3.0-or-later`) — see [LICENSE](LICENSE).
+
+The role installs [Odoo Community](https://www.odoo.com/), which is a separate
+work distributed by Odoo S.A. under the **GNU LGPLv3 (or later)**. The two
+licenses are independent and compatible: this role's own source is
+GPL-3.0-or-later, while Odoo Community remains under its own upstream LGPLv3
+terms. This project is not affiliated with, endorsed by, or sponsored by
+Odoo S.A.
