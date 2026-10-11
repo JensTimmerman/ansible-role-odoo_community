@@ -1,0 +1,18 @@
+---
+# Molecule verify for odoo.
+# Re-applies the role with the mutating phases disabled and its read-only
+# contract/verify checks enabled, asserting they pass on a clean runner.
+- name: "Verify"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: true
+  tasks:
+    - name: "Re-apply odoo role contract checks"
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        odoo_manage_postgresql: false
+        odoo_manage_runtime: false
+        odoo_manage_peppol: false
+        odoo_manage_backups: false
+        odoo_run_verify: true

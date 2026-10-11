@@ -1,0 +1,87 @@
+---
+# Role: odoo
+# Variables (higher priority - harder to override).
+# Derived/internal values only; user-facing knobs live in defaults/main.yml.
+
+# Paths and service name derived from the user-facing defaults above so the
+# config template and systemd unit stay single-sourced.
+odoo_config_dir: "/etc/odoo"
+odoo_config_path: "/etc/odoo/odoo.conf"
+odoo_service_name: "odoo"
+
+# Directory for role-managed helper scripts (rendered, owned by the odoo user).
+odoo_scripts_dir: "{{ odoo_base_dir }}/scripts"
+
+# Peppol: idempotent Odoo ORM script that applies the accounting defaults
+# (self-billing sale journal, purchase journal, web.base.url, poll interval)
+# via `odoo-bin shell`.
+odoo_peppol_script_path: "{{ odoo_scripts_dir }}/peppol-defaults.py"
+
+# Backups: dump script + systemd units.
+odoo_backup_script_path: "{{ odoo_scripts_dir }}/odoo-backup.sh"
+odoo_backup_service_name: "odoo-backup"
+odoo_backup_timer_name: "odoo-backup"
+
+# Persistent writable state (owned by the odoo user). data_dir holds the
+# filestore + sessions; log dir holds odoo.log (see templates/odoo.conf.j2).
+odoo_data_dir: "/var/lib/odoo"
+odoo_log_dir: "/var/log/odoo"
+
+# Addons search path: the two upstream source addons trees.
+odoo_addons_path: "{{ odoo_src_dir }}/addons,{{ odoo_src_dir }}/odoo/addons"
+
+# --- PostgreSQL (passed to the delegated PostgreSQL role) ------------------
+
+# Loopback trust by default; scram-sha-256 once odoo_db_password is set.
+odoo_postgresql_auth_method: "{{ 'scram-sha-256' if (odoo_db_password | default('') | length > 0) else 'trust' }}"
+
+odoo_postgresql_python_library: "python3-psycopg2"
+
+odoo_postgresql_databases:
+  - name: "{{ odoo_db_name }}"
+    owner: "{{ odoo_db_user }}"
+    # C.utf8 is always present in a fresh PGDG cluster (en_US.UTF-8 may not be
+    # generated on a minimal image); Odoo is UTF-8 safe on it.
+    lc_collate: "C.utf8"
+    lc_ctype: "C.utf8"
+    encoding: "UTF8"
+
+# The password key is only added when odoo_db_password is set, so the
+# delegated role leaves the role passwordless under trust auth.
+odoo_postgresql_users: >-
+  {{
+    [odoo_postgresql_user_base]
+    + ([{'password': odoo_db_password}] if (odoo_db_password | default('') | length > 0) else [])
+  }}
+odoo_postgresql_user_base:
+  name: "{{ odoo_db_user }}"
+  role_attr_flags: "{{ odoo_postgresql_role_attr_flags }}"
+
+# Loopback-only authentication: the odoo role/database can only connect from
+# the local socket or 127.0.0.1 / ::1. postgres itself stays on peer auth.
+odoo_postgresql_hba_entries:
+  - type: "local"
+    database: "all"
+    user: "postgres"
+    auth_method: "peer"
+  - type: "local"
+    database: "{{ odoo_db_name }}"
+    user: "{{ odoo_db_user }}"
+    auth_method: "{{ odoo_postgresql_auth_method }}"
+  - type: "host"
+    database: "{{ odoo_db_name }}"
+    user: "{{ odoo_db_user }}"
+    address: "127.0.0.1/32"
+    auth_method: "{{ odoo_postgresql_auth_method }}"
+  - type: "host"
+    database: "{{ odoo_db_name }}"
+    user: "{{ odoo_db_user }}"
+    address: "::1/128"
+    auth_method: "{{ odoo_postgresql_auth_method }}"
+
+# Global postgresql.conf options: bind the listener to loopback only.
+odoo_postgresql_global_config_options:
+  - option: "listen_addresses"
+    value: "{{ odoo_postgresql_listen_addresses }}"
+  - option: "unix_socket_directories"
+    value: "{{ odoo_postgresql_socket }}"

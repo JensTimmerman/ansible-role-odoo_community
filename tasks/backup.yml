@@ -1,0 +1,69 @@
+---
+# Role: odoo
+# Backups (optional).
+#
+# Daily dump: the Odoo database (custom-format pg_dump) + the filestore into
+# odoo_backup_dir, scheduled by a systemd timer. Retention is local; copying
+# data off-site is an operator action (see tasks/backup_reminder.yml).
+#
+# With loopback trust auth pg_dump needs no password. When odoo_db_password is
+# set, the rendered (host-local, operator-owned) backup script exports
+# PGPASSWORD; the role repo itself never carries a secret.
+
+- name: "Ensure the Odoo backup directory exists"
+  ansible.builtin.file:
+    path: "{{ odoo_backup_dir }}"
+    state: "directory"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0750"
+  tags:
+    - "odoo"
+    - "backup"
+
+- name: "Deploy the Odoo backup script"
+  ansible.builtin.template:
+    src: "odoo-backup.sh.j2"
+    dest: "{{ odoo_backup_script_path }}"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0750"
+  notify: "Reload odoo backup units"
+  tags:
+    - "odoo"
+    - "backup"
+
+- name: "Deploy the Odoo backup systemd service"
+  ansible.builtin.template:
+    src: "odoo-backup.service.j2"
+    dest: "/etc/systemd/system/{{ odoo_backup_service_name }}.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: "Reload odoo backup units"
+  tags:
+    - "odoo"
+    - "backup"
+
+- name: "Deploy the Odoo backup systemd timer"
+  ansible.builtin.template:
+    src: "odoo-backup.timer.j2"
+    dest: "/etc/systemd/system/{{ odoo_backup_timer_name }}.timer"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: "Reload odoo backup units"
+  tags:
+    - "odoo"
+    - "backup"
+
+- name: "Enable and start the Odoo backup timer"
+  ansible.builtin.systemd:
+    name: "{{ odoo_backup_timer_name }}.timer"
+    enabled: true
+    state: "started"
+    daemon_reload: true
+  tags:
+    - "odoo"
+    - "backup"
+    - "systemd"

@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# Odoo daily dump, triggered by the matching timer.
+[Unit]
+Description=Odoo daily database + filestore dump
+Documentation=https://www.odoo.com/documentation/{{ odoo_version }}/
+Requires={{ odoo_postgresql_service }}.service
+After={{ odoo_postgresql_service }}.service
+
+[Service]
+Type=oneshot
+User={{ odoo_user }}
+Group={{ odoo_group }}
+Environment=HOME={{ odoo_base_dir }}
+ExecStart=/bin/bash {{ odoo_backup_script_path }}

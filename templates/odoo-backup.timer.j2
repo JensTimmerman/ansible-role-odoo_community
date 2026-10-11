@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Odoo daily dump timer. Persistent=true catches up a missed run (e.g. host
+# down); RandomizedDelaySec avoids a fixed start-time collision.
+[Unit]
+Description=Run the Odoo daily database + filestore dump
+
+[Timer]
+OnCalendar={{ odoo_backup_oncalendar }}
+RandomizedDelaySec={{ odoo_backup_randomized_delay_sec | int }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

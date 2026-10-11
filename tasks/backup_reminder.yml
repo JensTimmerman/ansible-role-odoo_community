@@ -1,0 +1,21 @@
+---
+# Role: odoo
+# Offsite-copy reminder (on-demand, read-only).
+#
+# A read-only debug reminder, tagged "never" so it only shows on demand:
+#   ansible-playbook site.yml --tags odoo-offsite-reminder
+# The same text is documented in the README. No secret; the offsite target is
+# an operator decision and is a placeholder by default.
+
+- name: "Offsite-copy reminder (manual, operator)"
+  ansible.builtin.debug:
+    msg: >-
+      OFFSITE BACKUP COPY REMINDER ({{ odoo_offsite_reminder | default('3-monthly') }}):
+      copy the latest Odoo backup off-site. Local dumps live under
+      {{ odoo_backup_dir }} (DB pg_dump + filestore tar). Offsite target:
+      {{ odoo_offsite_target | default('<operator-confirmed: set odoo_offsite_target>', true) }}
+      -- never invent a host. This step is manual; the role does not copy data
+      off-site.
+  tags:
+    - "never"
+    - "odoo-offsite-reminder"

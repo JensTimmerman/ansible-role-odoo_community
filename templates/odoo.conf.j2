@@ -1,0 +1,39 @@
+; {{ ansible_managed }}
+; Odoo Community configuration - managed by Ansible (role: odoo).
+; Do not edit by hand: changes are overwritten on the next deploy.
+;
+; admin_passwd is the master password supplied by the caller (e.g. a vaulted
+; group_vars value). The database role uses loopback auth (trust by default,
+; scram-sha-256 when odoo_db_password is set).
+[options]
+addons_path = {{ odoo_addons_path }}
+data_dir = {{ odoo_data_dir }}
+
+; PostgreSQL - non-superuser role.
+db_host = {{ odoo_db_host }}
+db_port = {{ odoo_db_port | int }}
+db_user = {{ odoo_db_user }}
+{% if odoo_db_password | default('') | length > 0 %}
+db_password = {{ odoo_db_password }}
+{% endif %}
+dbfilter = ^{{ odoo_db_name }}$
+list_db = {{ odoo_list_db | bool }}
+
+; Master password (supplied by the caller; never a plaintext literal in-repo).
+admin_passwd = {{ odoo_config_admin_passwd }}
+
+; Reverse proxy in front of Odoo (trusts X-Forwarded-* headers).
+proxy_mode = {{ odoo_proxy_mode | bool }}
+
+; Listeners bind to the configured interface (loopback by default).
+workers = {{ odoo_workers | int }}
+max_cron_threads = {{ odoo_max_cron_threads | int }}
+http_interface = {{ odoo_bind_interface }}
+http_port = {{ odoo_http_port | int }}
+gevent_port = {{ odoo_gevent_port | int }}
+xmlrpc_interface = {{ odoo_bind_interface }}
+xmlrpc_port = {{ odoo_http_port | int }}
+
+; Logging (owned by the odoo user; see tasks/runtime.yml).
+logfile = {{ odoo_log_dir }}/odoo.log
+log_level = info

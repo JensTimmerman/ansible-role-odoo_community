@@ -1,0 +1,165 @@
+---
+# Role: odoo
+# Default variables (lowest priority - easily overridden by inventory/play
+# vars). Documentation examples use RFC 5737 / RFC 2606 placeholders
+# (192.0.2.0/24, example.com).
+#
+# No secrets live here. One secret the rendered odoo.conf needs --
+# odoo_config_admin_passwd (the Odoo master password) -- must be supplied by
+# the caller (e.g. from a vaulted inventory group_vars). tasks/runtime.yml
+# fails loudly when it is absent, so the role keeps zero plaintext secrets.
+#
+# PostgreSQL auth defaults to loopback trust (no password), so out of the box
+# no database secret is required. Set odoo_db_password to switch the dedicated
+# role + pg_hba to scram-sha-256 and emit db_password in odoo.conf.
+
+# --- Odoo version / layout -------------------------------------------------
+
+# Odoo major version line (Community).
+odoo_version: "19.0"
+
+# Git remote the Odoo source is cloned from, and the ref (branch/tag) checked
+# out (defaults to the version line).
+odoo_repo_url: "https://github.com/odoo/odoo"
+odoo_repo_version: "{{ odoo_version }}"
+
+# Base directory owning the runtime (system user home + sources + venv).
+odoo_base_dir: "/opt/odoo"
+
+# Python virtualenv and Odoo source checkout (under the base dir).
+odoo_venv_dir: "{{ odoo_base_dir }}/venv"
+odoo_src_dir: "{{ odoo_base_dir }}/odoo"
+
+# Unprivileged system user/group owning the runtime (no login shell).
+odoo_user: "odoo"
+odoo_group: "odoo"
+
+# --- HTTP / proxy ----------------------------------------------------------
+
+# HTTP port Odoo listens on; the gevent (websocket/longpolling) port is
+# separate and must differ.
+odoo_http_port: 8069
+odoo_gevent_port: 8072
+
+# Odoo worker processes (0 = threaded, single process) and cron threads.
+odoo_workers: 2
+odoo_max_cron_threads: 1
+
+# Bind Odoo's HTTP/XML-RPC/gevent listeners to loopback only. Keep true when a
+# reverse proxy on the same host is the public entry point.
+odoo_bind_interface: "127.0.0.1"
+
+# Publish proxy_mode / list_db in odoo.conf. proxy_mode trusts the reverse
+# proxy's X-Forwarded-* headers; list_db=False hides the database selector.
+odoo_proxy_mode: true
+odoo_list_db: false
+
+# Base URL Odoo publishes as web.base.url (e.g. https://odoo.example.com).
+# Empty means "leave Odoo's own default alone" (the Peppol script only sets it
+# when non-empty).
+odoo_base_url: ""
+
+# --- PostgreSQL ------------------------------------------------------------
+
+# PostgreSQL connection. By default the host stays loopback: Odoo and
+# PostgreSQL share the host and pg_hba only trusts 127.0.0.1/::1/local.
+odoo_db_name: "odoo"
+odoo_db_user: "odoo"
+odoo_db_host: "localhost"
+odoo_db_port: 5432
+
+# Optional database password. Empty = loopback trust auth (no secret, the
+# default). Set it (from a vault) to enable scram-sha-256 on the dedicated
+# role and the matching pg_hba entries and emit db_password in odoo.conf.
+odoo_db_password: ""
+
+# PGDG PostgreSQL major version for the dedicated server.
+odoo_postgresql_version: "16"
+
+# Bootstrap the PGDG repository (and disable the distro postgresql module on
+# EL) before delegating to the PostgreSQL role. Set false when the repo is
+# managed elsewhere (e.g. a common play). Only used on the RedHat family.
+odoo_manage_pgdg_repo: true
+
+# Non-superuser attributes for the dedicated role. Odoo owns its single DB and
+# needs no cluster privileges; list_db=False disables DB creation via the UI,
+# so CREATEDB/CREATEROLE/SUPERUSER stay off.
+odoo_postgresql_role_attr_flags: "NOSUPERUSER NOCREATEDB NOCREATEROLE"
+
+# Restrict the server to loopback (never 0.0.0.0).
+odoo_postgresql_listen_addresses: "localhost"
+
+# Name of the PostgreSQL role to delegate server provisioning to (must be
+# available, e.g. via requirements.yml).
+odoo_postgresql_role_name: "ansible-role-postgresql"
+
+# --- Runtime ---------------------------------------------------------------
+
+# Python major.minor used to build the virtualenv (Odoo 19 needs >= 3.10).
+odoo_python_version: "3.12"
+
+# Extra pip packages installed into the venv on top of requirements.txt.
+odoo_venv_extra_packages:
+  - "phonenumbers"
+
+# Install the base module when the Odoo database has no schema yet
+# (idempotent: skipped once ir_module_module exists). Disable to leave DB init
+# to the owner.
+odoo_initialize_database: true
+
+# --- Peppol / e-invoicing --------------------------------------------------
+
+# Community modules enabled in the Odoo database for Peppol. account_peppol
+# auto-installs account_edi_ubl_cii; listing both keeps the intent explicit.
+# Enabling is `odoo-bin -i` (a no-op once installed).
+odoo_peppol_modules:
+  - "account_peppol"
+  - "account_edi_ubl_cii"
+
+# Reception uses Odoo's built-in access point by POLLING only
+# (ir_cron_peppol_get_new_documents). Poll interval in hours applied to that
+# cron (upstream default 4).
+odoo_peppol_poll_interval_hours: 4
+
+# Names of the two accounting defaults created idempotently via the ORM:
+#   - a SALE journal flagged is_self_billing (inbound self-bills land here);
+#   - a PURCHASE journal set as company.peppol_purchase_journal_id (required to
+#     receive anything, even self-bills).
+odoo_peppol_self_billing_journal_name: "Peppol Self-Billing"
+odoo_peppol_purchase_journal_name: "Peppol Purchases"
+
+# --- Backups ---------------------------------------------------------------
+
+# Directory for the daily dump of the Odoo database (custom-format pg_dump)
+# plus the filestore.
+odoo_backup_dir: "/var/lib/odoo/backups"
+
+# Delete local dumps older than this many days.
+odoo_backup_retention_days: 7
+
+# systemd timer schedule for the dump (daily by default) plus a random delay.
+odoo_backup_oncalendar: "*-*-* 03:15:00"
+odoo_backup_randomized_delay_sec: 600
+
+# Offsite copy reminder cadence (documentation/reminder only; the role never
+# copies data off-site).
+odoo_offsite_reminder: "3-monthly"
+
+# Offsite copy target. Empty by default so the reminder tells the operator to
+# confirm it rather than inventing a host.
+odoo_offsite_target: ""
+
+# --- Feature flags / verification -----------------------------------------
+
+odoo_manage_postgresql: true
+odoo_manage_runtime: true
+odoo_manage_peppol: true
+odoo_manage_backups: true
+
+# Run tasks/verify.yml (read-only checks).
+odoo_run_verify: true
+
+# Odoo master password (admin_passwd). Intentionally NOT defaulted to a value:
+# the caller supplies it (e.g. from vaulted inventory). tasks/runtime.yml
+# fails loudly when it is absent.
+odoo_config_admin_passwd: ""

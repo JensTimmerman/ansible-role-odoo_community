@@ -1,0 +1,38 @@
+# {{ ansible_managed }}
+# Odoo Community (role: odoo). Runs as the unprivileged {{ odoo_user }}
+# user; the venv is under {{ odoo_venv_dir }} and all writable state lives in
+# {{ odoo_data_dir }} / {{ odoo_log_dir }} (created by the role).
+[Unit]
+Description=Odoo {{ odoo_version }} Community
+Documentation=https://www.odoo.com/documentation/{{ odoo_version }}/
+Requires={{ odoo_postgresql_service }}.service
+After=network-online.target {{ odoo_postgresql_service }}.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+SyslogIdentifier=odoo
+User={{ odoo_user }}
+Group={{ odoo_group }}
+WorkingDirectory={{ odoo_base_dir }}
+Environment=HOME={{ odoo_base_dir }}
+Environment=PYTHONUNBUFFERED=1
+ExecStart={{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin -c {{ odoo_config_path }}
+StandardOutput=journal
+StandardError=journal
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening: no privilege escalation, read-only system paths, private /tmp.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+---
+# Example playbook / smoke test for the odoo role.
+# Contract-only, host-safe: the mutating phases are disabled so this can run
+# on a CI runner. Enable them on a real target (see the README quick start).
+- name: "Converge the odoo role"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: true
+  roles:
+    - role: "odoo"
+      vars:
+        odoo_config_admin_passwd: "example-not-a-real-secret"
+        odoo_base_url: "https://odoo.example.com"
+        odoo_manage_postgresql: false
+        odoo_manage_runtime: false
+        odoo_manage_peppol: false
+        odoo_manage_backups: false

@@ -1,0 +1,289 @@
+---
+# Role Argument Specifications (Ansible 2.11+)
+# User-facing variable contract for the odoo role. OS-specific vars (paths,
+# packages, socket) are loaded from vars/{{ ansible_os_family }}.yml and are
+# not options here.
+
+argument_specs:
+  main:
+    short_description: "Odoo Community runtime (PostgreSQL + systemd)"
+    description:
+      - "Provisions PostgreSQL (dedicated non-superuser role + database +"
+      - "unaccent, loopback-only listener) and the Odoo Community runtime"
+      - "(Python virtualenv, unprivileged systemd service, hardened config),"
+      - "with optional Peppol e-invoicing and daily backups."
+    author:
+      - "jenstimmerman"
+
+    options:
+      odoo_version:
+        type: "str"
+        required: false
+        default: "19.0"
+        description: "Odoo major version line (Community)."
+
+      odoo_repo_url:
+        type: "str"
+        required: false
+        default: "https://github.com/odoo/odoo"
+        description: "Git remote the Odoo source is cloned from."
+
+      odoo_repo_version:
+        type: "str"
+        required: false
+        default: "{{ odoo_version }}"
+        description: "Git ref (branch/tag) checked out; defaults to the version line."
+
+      odoo_base_dir:
+        type: "str"
+        required: false
+        default: "/opt/odoo"
+        description: "Base directory owning the runtime (home + sources + venv)."
+
+      odoo_venv_dir:
+        type: "str"
+        required: false
+        default: "{{ odoo_base_dir }}/venv"
+        description: "Python virtualenv directory."
+
+      odoo_src_dir:
+        type: "str"
+        required: false
+        default: "{{ odoo_base_dir }}/odoo"
+        description: "Odoo source checkout directory."
+
+      odoo_user:
+        type: "str"
+        required: false
+        default: "odoo"
+        description: "Unprivileged system user owning the runtime."
+
+      odoo_group:
+        type: "str"
+        required: false
+        default: "odoo"
+        description: "System group owning the runtime."
+
+      odoo_http_port:
+        type: "int"
+        required: false
+        default: 8069
+        description: "HTTP port Odoo listens on."
+
+      odoo_gevent_port:
+        type: "int"
+        required: false
+        default: 8072
+        description: "gevent (websocket/longpolling) port; must differ from odoo_http_port."
+
+      odoo_workers:
+        type: "int"
+        required: false
+        default: 2
+        description: "Odoo worker processes (0 = threaded single process)."
+
+      odoo_max_cron_threads:
+        type: "int"
+        required: false
+        default: 1
+        description: "Odoo cron worker threads."
+
+      odoo_bind_interface:
+        type: "str"
+        required: false
+        default: "127.0.0.1"
+        description: "Interface Odoo's HTTP/XML-RPC/gevent listeners bind to."
+
+      odoo_proxy_mode:
+        type: "bool"
+        required: false
+        default: true
+        description: "Trust reverse-proxy X-Forwarded-* headers (proxy_mode)."
+
+      odoo_list_db:
+        type: "bool"
+        required: false
+        default: false
+        description: "Expose the database selector (list_db)."
+
+      odoo_base_url:
+        type: "str"
+        required: false
+        default: ""
+        description: "Base URL published as web.base.url (e.g. https://odoo.example.com); empty leaves Odoo's default."
+
+      odoo_db_name:
+        type: "str"
+        required: false
+        default: "odoo"
+        description: "PostgreSQL database name."
+
+      odoo_db_user:
+        type: "str"
+        required: false
+        default: "odoo"
+        description: "PostgreSQL role name (non-superuser)."
+
+      odoo_db_host:
+        type: "str"
+        required: false
+        default: "localhost"
+        description: "PostgreSQL host (loopback only by default)."
+
+      odoo_db_port:
+        type: "int"
+        required: false
+        default: 5432
+        description: "PostgreSQL port."
+
+      odoo_db_password:
+        type: "str"
+        required: false
+        default: ""
+        description: "Optional database password; empty = loopback trust auth."
+
+      odoo_postgresql_version:
+        type: "str"
+        required: false
+        default: "16"
+        description: "PGDG PostgreSQL major version."
+
+      odoo_manage_pgdg_repo:
+        type: "bool"
+        required: false
+        default: true
+        description: "Bootstrap the PGDG repository on the EL family before provisioning PostgreSQL."
+
+      odoo_postgresql_role_attr_flags:
+        type: "str"
+        required: false
+        default: "NOSUPERUSER NOCREATEDB NOCREATEROLE"
+        description: "Role attributes for the dedicated Odoo database role."
+
+      odoo_postgresql_listen_addresses:
+        type: "str"
+        required: false
+        default: "localhost"
+        description: "postgresql.conf listen_addresses (loopback only)."
+
+      odoo_postgresql_role_name:
+        type: "str"
+        required: false
+        default: "ansible-role-postgresql"
+        description: "Name of the PostgreSQL role to delegate server provisioning to."
+
+      odoo_python_version:
+        type: "str"
+        required: false
+        default: "3.12"
+        description: "Python major.minor used to build the virtualenv (>= 3.10)."
+
+      odoo_venv_extra_packages:
+        type: "list"
+        required: false
+        elements: "str"
+        default: ["phonenumbers"]
+        description: "Extra pip packages beyond requirements.txt."
+
+      odoo_peppol_modules:
+        type: "list"
+        required: false
+        elements: "str"
+        default: ["account_peppol", "account_edi_ubl_cii"]
+        description: "Community Peppol modules installed into the Odoo database (idempotent -i)."
+
+      odoo_peppol_poll_interval_hours:
+        type: "int"
+        required: false
+        default: 4
+        description: "Polling interval (hours) for the built-in Peppol reception cron (upstream default 4)."
+
+      odoo_peppol_self_billing_journal_name:
+        type: "str"
+        required: false
+        default: "Peppol Self-Billing"
+        description: "Name of the is_self_billing SALE journal created for inbound self-bills."
+
+      odoo_peppol_purchase_journal_name:
+        type: "str"
+        required: false
+        default: "Peppol Purchases"
+        description: "Name of the PURCHASE journal set as company.peppol_purchase_journal_id."
+
+      odoo_backup_dir:
+        type: "str"
+        required: false
+        default: "/var/lib/odoo/backups"
+        description: "Directory for the daily DB + filestore dump."
+
+      odoo_backup_retention_days:
+        type: "int"
+        required: false
+        default: 7
+        description: "Days to keep local dumps."
+
+      odoo_backup_oncalendar:
+        type: "str"
+        required: false
+        default: "*-*-* 03:15:00"
+        description: "systemd OnCalendar for the backup timer."
+
+      odoo_backup_randomized_delay_sec:
+        type: "int"
+        required: false
+        default: 600
+        description: "systemd RandomizedDelaySec for the backup timer."
+
+      odoo_offsite_reminder:
+        type: "str"
+        required: false
+        default: "3-monthly"
+        description: "Cadence of the offsite-copy reminder (documentation only)."
+
+      odoo_offsite_target:
+        type: "str"
+        required: false
+        default: ""
+        description: "Operator-confirmed offsite copy target (empty until decided)."
+
+      odoo_initialize_database:
+        type: "bool"
+        required: false
+        default: true
+        description: "Install the base module when the Odoo DB has no schema (idempotent)."
+
+      odoo_config_admin_passwd:
+        type: "str"
+        required: false
+        default: ""
+        description: "Odoo master password (admin_passwd); supply from a vaulted source."
+
+      odoo_manage_postgresql:
+        type: "bool"
+        required: false
+        default: true
+        description: "Manage PostgreSQL for Odoo."
+
+      odoo_manage_runtime:
+        type: "bool"
+        required: false
+        default: true
+        description: "Manage the Odoo runtime + service."
+
+      odoo_manage_peppol:
+        type: "bool"
+        required: false
+        default: true
+        description: "Manage Peppol (account_peppol) configuration."
+
+      odoo_manage_backups:
+        type: "bool"
+        required: false
+        default: true
+        description: "Manage Odoo backups."
+
+      odoo_run_verify:
+        type: "bool"
+        required: false
+        default: true
+        description: "Run tasks/verify.yml read-only checks."

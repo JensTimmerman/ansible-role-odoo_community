@@ -1,0 +1,153 @@
+---
+# Role: odoo
+# Verify: read-only post-conditions. Ports/contract are validated from vars;
+# live checks (rendered config, restricted PostgreSQL listener, service active)
+# only run when the corresponding phase is managed, so a contract/molecule run
+# with odoo_manage_* disabled stays host-safe and green.
+
+- name: "Check odoo HTTP/gevent ports are valid and distinct"
+  ansible.builtin.assert:
+    that:
+      - "odoo_http_port | int >= 1"
+      - "odoo_http_port | int <= 65535"
+      - "odoo_gevent_port | int >= 1"
+      - "odoo_gevent_port | int <= 65535"
+      - "odoo_gevent_port | int != odoo_http_port | int"
+    fail_msg: >-
+      odoo_http_port {{ odoo_http_port }} / odoo_gevent_port {{ odoo_gevent_port }}
+      must be distinct valid TCP ports.
+    success_msg: "odoo ports {{ odoo_http_port }}/{{ odoo_gevent_port }} are valid and distinct."
+    quiet: true
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Stat the rendered odoo.conf"
+  ansible.builtin.stat:
+    path: "{{ odoo_config_path }}"
+  register: "odoo_verify_config_stat"
+  check_mode: false
+  changed_when: false
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Read the rendered odoo.conf (read-only)"
+  ansible.builtin.slurp:
+    src: "{{ odoo_config_path }}"
+  register: "odoo_verify_config_raw"
+  check_mode: false
+  changed_when: false
+  when: "odoo_verify_config_stat.stat.exists | default(false)"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Assert odoo.conf binds the configured interface with the expected flags"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (odoo_verify_config_raw.content | b64decode) is search('(?m)^\\s*http_interface\\s*=\\s*'
+        ~ (odoo_bind_interface | regex_escape) ~ '\\s*$')
+      - >-
+        (odoo_verify_config_raw.content | b64decode) is search('(?m)^\\s*gevent_port\\s*=\\s*'
+        ~ (odoo_gevent_port | string) ~ '\\s*$')
+      - >-
+        (odoo_verify_config_raw.content | b64decode) is search('(?m)^\\s*proxy_mode\\s*=\\s*'
+        ~ (odoo_proxy_mode | bool | string) ~ '\\s*$')
+      - >-
+        (odoo_verify_config_raw.content | b64decode) is search('(?m)^\\s*list_db\\s*=\\s*'
+        ~ (odoo_list_db | bool | string) ~ '\\s*$')
+    fail_msg: "Rendered odoo.conf does not match the configured binding/flags."
+    success_msg: "Rendered odoo.conf matches the configured binding and flags."
+    quiet: true
+  when: "odoo_verify_config_stat.stat.exists | default(false)"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Check the PostgreSQL listener is restricted to loopback"
+  become: true
+  become_user: "postgres"
+  community.postgresql.postgresql_query:
+    db: "postgres"
+    login_unix_socket: "{{ odoo_postgresql_socket }}"
+    query: "SHOW listen_addresses"
+  register: "odoo_verify_listen"
+  changed_when: false
+  when: "odoo_manage_postgresql | bool"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Assert PostgreSQL does not listen on all interfaces"
+  ansible.builtin.assert:
+    that:
+      - "'0.0.0.0' not in (odoo_verify_listen.query_result[0].listen_addresses | default(''))"
+      - "'localhost' in (odoo_verify_listen.query_result[0].listen_addresses | default(''))"
+    fail_msg: >-
+      PostgreSQL listen_addresses is
+      {{ odoo_verify_listen.query_result[0].listen_addresses | default('') | default('<unset>') }}
+      -- expected localhost only.
+    success_msg: "PostgreSQL listens on loopback only."
+    quiet: true
+  when: "odoo_manage_postgresql | bool"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Check the Odoo service is active"
+  ansible.builtin.systemd:
+    name: "{{ odoo_service_name }}"
+  register: "odoo_verify_service"
+  when: "odoo_manage_runtime | bool"
+  changed_when: false
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Assert the Odoo service is running and enabled"
+  ansible.builtin.assert:
+    that:
+      - "odoo_verify_service.status.ActiveState | default('') == 'active'"
+      - "odoo_verify_service.status.UnitFileState | default('') == 'enabled'"
+    fail_msg: "Odoo service is not active/enabled after deploy."
+    success_msg: "Odoo service is active and enabled."
+    quiet: true
+  when: "odoo_manage_runtime | bool"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Probe installed Peppol modules (read-only)"
+  become: true
+  become_user: "postgres"
+  community.postgresql.postgresql_query:
+    db: "{{ odoo_db_name }}"
+    login_unix_socket: "{{ odoo_postgresql_socket }}"
+    query: >-
+      SELECT count(*) AS installed FROM ir_module_module
+      WHERE name IN ({{ odoo_peppol_modules | map('regex_replace', '^(.*)$', "'\1'") | join(', ') }})
+      AND state = 'installed'
+  register: "odoo_verify_peppol"
+  changed_when: false
+  when: "odoo_manage_peppol | bool"
+  tags:
+    - "odoo"
+    - "peppol"
+    - "verify"
+
+- name: "Assert the Peppol modules are installed"
+  ansible.builtin.assert:
+    that:
+      - "(odoo_verify_peppol.query_result[0].installed | int) >= (odoo_peppol_modules | length)"
+    fail_msg: >-
+      Peppol modules {{ odoo_peppol_modules | join(', ') }} are not all
+      installed in database {{ odoo_db_name }}.
+    success_msg: "Peppol modules are installed."
+    quiet: true
+  when: "odoo_manage_peppol | bool"
+  tags:
+    - "odoo"
+    - "peppol"
+    - "verify"

@@ -1,0 +1,96 @@
+---
+# Role: odoo
+# PostgreSQL for Odoo.
+#
+# On the EL family this optionally bootstraps the PGDG repository (and disables
+# the distro postgresql module) first, then delegates provisioning of the
+# server, the dedicated role + database, the loopback-only pg_hba and the
+# restricted listener to the configured PostgreSQL role, and finally enables
+# the unaccent extension the Odoo account/peppol stack expects.
+#
+# Auth model: loopback trust by default, or scram-sha-256 when odoo_db_password
+# is set (see vars/main.yml). The listener is never bound to 0.0.0.0.
+
+- name: "Check for the PGDG repository definition"
+  ansible.builtin.stat:
+    path: "{{ odoo_pgdg_repo_file }}"
+  register: "odoo_pgdg_repo"
+  changed_when: false
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "odoo_manage_pgdg_repo | bool"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Bootstrap the PGDG repository RPM"
+  ansible.builtin.dnf:
+    name: "{{ odoo_pgdg_repo_rpm }}"
+    state: "present"
+    # Bootstrap RPM's signing key is not in the keyring yet.
+    disable_gpg_check: true
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "odoo_manage_pgdg_repo | bool"
+    - "not odoo_pgdg_repo.stat.exists | default(false)"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Check whether the distro postgresql module is enabled"
+  ansible.builtin.command:
+    cmd: "dnf -qy module list --enabled postgresql"
+  register: "odoo_pgdg_postgresql_module"
+  changed_when: false
+  failed_when: false
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "odoo_manage_pgdg_repo | bool"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Disable the distro postgresql module (PGDG provides the server)"
+  ansible.builtin.command:
+    cmd: "dnf -qy module disable postgresql"
+  changed_when: true
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "odoo_manage_pgdg_repo | bool"
+    - "'postgresql' in (odoo_pgdg_postgresql_module.stdout | default(''))"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Install and configure PostgreSQL for Odoo (PGDG v{{ odoo_postgresql_version }})"
+  ansible.builtin.include_role:
+    name: "{{ odoo_postgresql_role_name }}"
+  vars:
+    postgresql_python_library: "{{ odoo_postgresql_python_library }}"
+    postgresql_version: "{{ odoo_postgresql_version }}"
+    postgresql_packages: "{{ odoo_postgresql_packages }}"
+    postgresql_daemon: "{{ odoo_postgresql_service }}"
+    postgresql_data_dir: "{{ odoo_postgresql_data_dir }}"
+    postgresql_bin_path: "{{ odoo_postgresql_bin_path }}"
+    postgresql_config_path: "{{ odoo_postgresql_config_path }}"
+    postgresql_unix_socket_directories:
+      - "{{ odoo_postgresql_socket }}"
+    postgresql_global_config_options: "{{ odoo_postgresql_global_config_options }}"
+    postgresql_hba_entries: "{{ odoo_postgresql_hba_entries }}"
+    postgresql_databases: "{{ odoo_postgresql_databases }}"
+    postgresql_users: "{{ odoo_postgresql_users }}"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Enable the unaccent extension in the Odoo database"
+  become: true
+  become_user: "postgres"
+  community.postgresql.postgresql_ext:
+    name: "unaccent"
+    db: "{{ odoo_db_name }}"
+    login_unix_socket: "{{ odoo_postgresql_socket }}"
+    state: "present"
+  tags:
+    - "odoo"
+    - "postgresql"
