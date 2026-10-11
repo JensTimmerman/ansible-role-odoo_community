@@ -1,0 +1,17 @@
+# Ansible
+*.retry
+.cache/
+.molecule/
+molecule/*/.molecule/
+.ansible/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors / OS
+*~
+*.swp
+.DS_Store
+.vscode/
+.idea/
