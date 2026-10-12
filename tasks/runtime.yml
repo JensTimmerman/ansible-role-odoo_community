@@ -1,0 +1,217 @@
+---
+# Role: odoo
+# Odoo runtime.
+#
+# Runs Odoo from an unprivileged system user via a Python virtualenv under
+# odoo_base_dir, backed by the PostgreSQL service managed in
+# tasks/postgresql.yml. The rendered odoo.conf binds HTTP/gevent/XML-RPC to the
+# configured interface (loopback by default) and uses the master password
+# supplied by the caller.
+
+- name: "Require the Odoo master password before rendering config"
+  ansible.builtin.assert:
+    that:
+      - "(odoo_config_admin_passwd | default('')) | string | length > 0"
+    fail_msg: >-
+      odoo_config_admin_passwd is empty. Supply it from a vaulted source
+      (e.g. group_vars); the role never ships a plaintext master password.
+    success_msg: "Odoo master password supplied."
+    quiet: true
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Create the Odoo system group"
+  ansible.builtin.group:
+    name: "{{ odoo_group }}"
+    system: true
+    state: "present"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Create the Odoo system user (no login shell)"
+  ansible.builtin.user:
+    name: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    home: "{{ odoo_base_dir }}"
+    create_home: true
+    system: true
+    shell: "/sbin/nologin"
+    state: "present"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Install Odoo runtime system packages"
+  ansible.builtin.package:
+    name: "{{ odoo_system_packages }}"
+    state: "present"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Install wkhtmltopdf (upstream RPM, not pip)"
+  ansible.builtin.dnf:
+    name: "{{ odoo_wkhtmltopdf_packages }}"
+    state: "present"
+    # Upstream packaging RPM is not in a configured repo keyring.
+    disable_gpg_check: true
+  when: "ansible_os_family == 'RedHat'"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Install wkhtmltopdf (upstream .deb, not pip)"
+  ansible.builtin.apt:
+    deb: "{{ item }}"
+    state: "present"
+  loop: "{{ odoo_wkhtmltopdf_packages }}"
+  when: "ansible_os_family == 'Debian'"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Ensure Odoo code, data, log and config directories exist"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "directory"
+    owner: "{{ item.owner }}"
+    group: "{{ odoo_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ odoo_base_dir }}"
+      owner: "{{ odoo_user }}"
+      mode: "0755"
+    - path: "{{ odoo_data_dir }}"
+      owner: "{{ odoo_user }}"
+      mode: "0750"
+    - path: "{{ odoo_log_dir }}"
+      owner: "{{ odoo_user }}"
+      mode: "0750"
+    - path: "{{ odoo_config_dir }}"
+      owner: "root"
+      mode: "0750"
+  loop_control:
+    label: "{{ item.path }}"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Clone the Odoo source (version {{ odoo_version }})"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.git:
+    repo: "{{ odoo_repo_url }}"
+    dest: "{{ odoo_src_dir }}"
+    version: "{{ odoo_repo_version }}"
+    depth: 1
+    force: true
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Install Odoo Python requirements into the virtualenv"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.pip:
+    requirements: "{{ odoo_src_dir }}/requirements.txt"
+    virtualenv: "{{ odoo_venv_dir }}"
+    virtualenv_command: "{{ odoo_python_executable }} -m venv"
+    state: "present"
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Install extra Python packages into the virtualenv"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.pip:
+    name: "{{ odoo_venv_extra_packages }}"
+    virtualenv: "{{ odoo_venv_dir }}"
+    state: "present"
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Deploy the hardened odoo.conf"
+  ansible.builtin.template:
+    src: "odoo.conf.j2"
+    dest: "{{ odoo_config_path }}"
+    owner: "root"
+    group: "{{ odoo_group }}"
+    mode: "0640"
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Deploy the odoo systemd unit"
+  ansible.builtin.template:
+    src: "odoo.service.j2"
+    dest: "/etc/systemd/system/{{ odoo_service_name }}.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Check whether the Odoo database schema is initialised"
+  become: true
+  become_user: "postgres"
+  community.postgresql.postgresql_query:
+    db: "{{ odoo_db_name }}"
+    login_unix_socket: "{{ odoo_postgresql_socket }}"
+    query: "SELECT to_regclass('public.ir_module_module') IS NOT NULL AS initialised"
+  register: "odoo_db_probe"
+  changed_when: false
+  when: "odoo_initialize_database | bool"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Initialise the Odoo database (install the base module) when empty"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin
+      -c {{ odoo_config_path }}
+      --database {{ odoo_db_name }}
+      --init base
+      --without-demo=all
+      --no-http
+      --stop-after-init
+    chdir: "{{ odoo_base_dir }}"
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  register: "odoo_init_result"
+  changed_when: "odoo_init_result.rc == 0"
+  when: >-
+    (odoo_initialize_database | bool) and
+    not (odoo_db_probe.query_result[0].initialised | default(false))
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Ensure the Odoo service is enabled and started"
+  ansible.builtin.systemd:
+    name: "{{ odoo_service_name }}"
+    state: "started"
+    enabled: true
+    daemon_reload: true
+  tags:
+    - "odoo"
+    - "runtime"

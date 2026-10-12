@@ -1,0 +1,66 @@
+---
+# Role: odoo
+# Entry point. Each phase is idempotent and check_mode safe; heavy mutation is
+# gated by the odoo_manage_* flags so a contract/molecule run stays host-safe.
+
+- name: "Load OS-specific variables"
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  tags:
+    - "odoo"
+    - "always"
+
+- name: "Require odoo role variables (fail loudly, no silent defaults)"
+  ansible.builtin.assert:
+    that:
+      - "(odoo_version | default('')) | string | length > 0"
+      - "(odoo_base_dir | default('')) | string | length > 0"
+      - "(odoo_db_name | default('')) | string | length > 0"
+      - "(odoo_db_user | default('')) | string | length > 0"
+      - "(odoo_db_host | default('')) | string | length > 0"
+      - "odoo_http_port | int > 0"
+      - "odoo_gevent_port | int > 0"
+      - "odoo_gevent_port | int != odoo_http_port | int"
+    fail_msg: >-
+      odoo vars missing or invalid: define odoo_version, odoo_base_dir,
+      odoo_db_name, odoo_db_user, odoo_db_host and distinct positive
+      odoo_http_port / odoo_gevent_port (see defaults/main.yml).
+    success_msg: "odoo role variable contract loaded."
+    quiet: true
+  tags:
+    - "odoo"
+    - "always"
+
+- name: "Manage PostgreSQL for Odoo"
+  ansible.builtin.include_tasks: "postgresql.yml"
+  when: "odoo_manage_postgresql | bool"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Manage the Odoo runtime"
+  ansible.builtin.include_tasks: "runtime.yml"
+  when: "odoo_manage_runtime | bool"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Manage Peppol e-invoicing"
+  ansible.builtin.include_tasks: "peppol.yml"
+  when: "odoo_manage_peppol | bool"
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Manage the Odoo backup dump"
+  ansible.builtin.include_tasks: "backup.yml"
+  when: "odoo_manage_backups | bool"
+  tags:
+    - "odoo"
+    - "backup"
+
+- name: "Verify odoo role"
+  ansible.builtin.include_tasks: "verify.yml"
+  when: "odoo_run_verify | bool"
+  tags:
+    - "odoo"
+    - "verify"

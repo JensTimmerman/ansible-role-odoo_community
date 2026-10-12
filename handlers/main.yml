@@ -1,0 +1,19 @@
+---
+# Role: odoo
+# Handlers. Runtime config/unit changes restart the service (never an
+# unconditional bounce); daemon_reload picks up a changed systemd unit.
+
+- name: "Restart odoo"
+  ansible.builtin.systemd:
+    name: "{{ odoo_service_name }}"
+    state: "restarted"
+    daemon_reload: true
+  become: true
+
+- name: "Reload odoo backup units"
+  ansible.builtin.systemd:
+    name: "{{ odoo_backup_timer_name }}.timer"
+    state: "restarted"
+    daemon_reload: true
+  become: true
+  when: "odoo_manage_backups | bool"

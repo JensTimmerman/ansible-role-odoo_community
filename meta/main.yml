@@ -1,0 +1,31 @@
+---
+galaxy_info:
+  role_name: "odoo_community"
+  author: "jenstimmerman"
+  description: >-
+    Unofficial, community-maintained Ansible role for the Odoo Community
+    runtime (PostgreSQL, Python virtualenv, hardened systemd service, optional
+    Peppol e-invoicing and backups). Not affiliated with, endorsed by, or
+    sponsored by Odoo S.A.; installs Odoo Community (LGPLv3) only.
+  company: "Jens Timmerman"
+  license: "GPL-3.0-or-later"
+  min_ansible_version: "2.11"
+
+  platforms:
+    - name: "EL"
+      versions:
+        - "9"
+    - name: "Debian"
+      versions:
+        - "all"
+    - name: "Ubuntu"
+      versions:
+        - "all"
+
+  galaxy_tags:
+    - "odoo"
+    - "erp"
+    - "postgresql"
+    - "peppol"
+
+dependencies: []

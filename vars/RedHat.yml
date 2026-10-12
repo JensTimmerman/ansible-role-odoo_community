@@ -1,0 +1,48 @@
+---
+# OS-specific variables for RHEL / Rocky Linux 9 (PGDG PostgreSQL).
+
+# PostgreSQL PGDG layout.
+odoo_postgresql_service: "postgresql-{{ odoo_postgresql_version }}"
+odoo_postgresql_packages:
+  - "postgresql{{ odoo_postgresql_version }}-server"
+  - "postgresql{{ odoo_postgresql_version }}"
+  # contrib ships the unaccent extension control files.
+  - "postgresql{{ odoo_postgresql_version }}-contrib"
+odoo_postgresql_data_dir: "/var/lib/pgsql/{{ odoo_postgresql_version }}/data"
+odoo_postgresql_bin_path: "/usr/pgsql-{{ odoo_postgresql_version }}/bin"
+odoo_postgresql_config_path: "/var/lib/pgsql/{{ odoo_postgresql_version }}/data"
+odoo_postgresql_socket: "/var/run/postgresql"
+
+# Odoo build/runtime dependencies for the EL family (dnf). The -devel packages
+# are needed to build psycopg2 / python-ldap / lxml from source.
+odoo_python_executable: "/usr/bin/python{{ odoo_python_version }}"
+odoo_system_packages:
+  - "python{{ odoo_python_version }}"
+  - "python{{ odoo_python_version }}-devel"
+  - "python{{ odoo_python_version }}-pip"
+  - "git"
+  - "gcc"
+  - "gcc-c++"
+  - "make"
+  - "redhat-rpm-config"
+  - "openldap-devel"
+  - "libpq-devel"
+  - "cyrus-sasl-devel"
+  - "libxslt-devel"
+  - "libjpeg-turbo-devel"
+  - "freetype-devel"
+  - "bzip2-devel"
+  - "libffi-devel"
+  - "nodejs"
+  - "gettext"
+
+# PGDG repository bootstrap RPM for EL 9.
+odoo_pgdg_repo_rpm: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+odoo_pgdg_repo_file: "/etc/yum.repos.d/pgdg-redhat-all.repo"
+
+# wkhtmltopdf 0.12.6 is installed from the archived upstream packaging RPM
+# (not pip). There is no EL9 build under the "el9" name, but the AlmaLinux 9
+# build is ABI-compatible with Rocky 9 (bundles patched Qt, links libssl.so.3
+# which EL 9 ships).
+odoo_wkhtmltopdf_packages:
+  - "https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/wkhtmltox-0.12.6.1-3.almalinux9.x86_64.rpm"

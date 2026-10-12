@@ -1,0 +1,67 @@
+# {{ ansible_managed }}
+#
+# Idempotent Peppol accounting defaults, applied through the Odoo ORM by
+# `odoo-bin shell < this-file`. Prints "peppol_defaults=changed" when it
+# created/updated anything, else "peppol_defaults=unchanged" (tasks/peppol.yml
+# uses that marker for changed_when).
+#
+# KYC / Peppol participant registration is an operator action; this script
+# never registers anything.
+_odoo_changed = False
+
+# 1) Stable public base URL: Peppol callbacks/report URLs are built from it.
+_wanted_base_url = {{ odoo_base_url | default('') | to_json }}
+if _wanted_base_url:
+    _params = env['ir.config_parameter'].sudo()
+    if _params.get_param('web.base.url') != _wanted_base_url:
+        _params.set_param('web.base.url', _wanted_base_url)
+        _odoo_changed = True
+
+_company = env.company
+
+# 2) Self-billing SALE journal: inbound self-bills (InvoiceTypeCode
+#    389/527/261) book here as a draft out_invoice
+#    (account_peppol prefers is_self_billing sales).
+_self_billing = env['account.journal'].search([
+    ('company_id', '=', _company.id),
+    ('type', '=', 'sale'),
+    ('is_self_billing', '=', True),
+], limit=1)
+if not _self_billing:
+    _self_billing = env['account.journal'].create({
+        'name': {{ odoo_peppol_self_billing_journal_name | to_json }},
+        'type': 'sale',
+        'is_self_billing': True,
+        'company_id': _company.id,
+    })
+    _odoo_changed = True
+
+# 3) Peppol PURCHASE journal: required even to receive self-bills.
+_purchase = _company.peppol_purchase_journal_id
+if not _purchase:
+    _purchase = env['account.journal'].search([
+        ('company_id', '=', _company.id),
+        ('type', '=', 'purchase'),
+    ], limit=1)
+    if not _purchase:
+        _purchase = env['account.journal'].create({
+            'name': {{ odoo_peppol_purchase_journal_name | to_json }},
+            'type': 'purchase',
+            'company_id': _company.id,
+        })
+        _odoo_changed = True
+    _company.peppol_purchase_journal_id = _purchase.id
+    _odoo_changed = True
+
+# 4) Reception polling interval (built-in AP cron; no webhooks on-prem).
+_cron = env.ref(
+    'account_peppol.ir_cron_peppol_get_new_documents',
+    raise_if_not_found=False,
+)
+if _cron and _cron.interval_number != {{ odoo_peppol_poll_interval_hours | int }}:
+    _cron.interval_number = {{ odoo_peppol_poll_interval_hours | int }}
+    _cron.interval_type = 'hours'
+    _odoo_changed = True
+
+env.cr.commit()
+print('peppol_defaults=' + ('changed' if _odoo_changed else 'unchanged'))

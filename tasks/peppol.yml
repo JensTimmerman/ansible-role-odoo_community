@@ -1,0 +1,125 @@
+---
+# Role: odoo
+# Peppol e-invoicing (optional).
+#
+# Enables the Community Peppol modules in the Odoo database and applies the
+# accounting defaults Peppol needs, all idempotently:
+#   - account_peppol + account_edi_ubl_cii installed with `odoo-bin -i`
+#     (same pattern as the base-module init in tasks/runtime.yml; `-i` is a
+#     no-op once a module is installed);
+#   - a SALE journal flagged is_self_billing (inbound self-bills land here);
+#   - a PURCHASE journal set as the company's peppol_purchase_journal_id
+#     (required to receive, even self-bills);
+#   - web.base.url and the built-in reception polling interval.
+#
+# Reception uses Odoo's built-in access point by POLLING only
+# (ir_cron_peppol_get_new_documents). No public webhook vhost is created.
+#
+# KYC / participant registration is an operator action and is never automated
+# by this role (see the README).
+
+- name: "Stat the Odoo binary before enabling Peppol"
+  ansible.builtin.stat:
+    path: "{{ odoo_src_dir }}/odoo-bin"
+  register: "odoo_peppol_bin_stat"
+  changed_when: false
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Fail loudly when the Odoo runtime is not present for Peppol"
+  ansible.builtin.assert:
+    that:
+      - "odoo_peppol_bin_stat.stat.exists | default(false)"
+    fail_msg: >-
+      odoo-bin not found at {{ odoo_src_dir }}/odoo-bin; the runtime phase
+      (odoo_manage_runtime) must run before odoo_manage_peppol.
+    success_msg: "Odoo runtime present for Peppol."
+    quiet: true
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Probe installed Peppol modules in the Odoo database"
+  become: true
+  become_user: "postgres"
+  community.postgresql.postgresql_query:
+    db: "{{ odoo_db_name }}"
+    login_unix_socket: "{{ odoo_postgresql_socket }}"
+    query: >-
+      SELECT count(*) AS installed FROM ir_module_module
+      WHERE name IN ({{ odoo_peppol_modules | map('regex_replace', '^(.*)$', "'\1'") | join(', ') }})
+      AND state = 'installed'
+  register: "odoo_peppol_modules_probe"
+  changed_when: false
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Install the Peppol modules (idempotent: -i skips installed ones)"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin
+      -c {{ odoo_config_path }}
+      --database {{ odoo_db_name }}
+      --init {{ odoo_peppol_modules | join(',') }}
+      --without-demo=all
+      --no-http
+      --stop-after-init
+    chdir: "{{ odoo_base_dir }}"
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  register: "odoo_peppol_install_result"
+  changed_when: "odoo_peppol_install_result.rc == 0"
+  when: >-
+    (odoo_peppol_modules_probe.query_result[0].installed | int) <
+    (odoo_peppol_modules | length)
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Deploy the idempotent Peppol accounting-defaults script"
+  ansible.builtin.template:
+    src: "peppol-defaults.py.j2"
+    dest: "{{ odoo_peppol_script_path }}"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0640"
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Apply the Peppol accounting defaults (idempotent ORM script)"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.shell:
+    cmd: >-
+      {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin shell
+      -c {{ odoo_config_path }}
+      --database {{ odoo_db_name }}
+      < {{ odoo_peppol_script_path }}
+    chdir: "{{ odoo_base_dir }}"
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  register: "odoo_peppol_defaults_result"
+  changed_when: "'peppol_defaults=changed' in odoo_peppol_defaults_result.stdout"
+  notify: "Restart odoo"
+  tags:
+    - "odoo"
+    - "peppol"
+
+- name: "Remind operator of the Peppol KYC / registration step (on-demand)"
+  ansible.builtin.debug:
+    msg: >-
+      OPERATOR ACTION (not automated -- requires KYC): register this company as
+      a Peppol participant in Accounting > Configuration > Settings > Peppol
+      Electronic Invoicing, using the correct EAS scheme/identifier for your
+      jurisdiction. The role has only enabled the modules and created the
+      journals; it never registers the participant.
+  tags:
+    - "never"
+    - "peppol-reminder"
+    - "peppol"

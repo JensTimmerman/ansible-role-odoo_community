@@ -1,0 +1,39 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Odoo daily dump: dumps the database (custom-format pg_dump) and the
+# filestore into {{ odoo_backup_dir }}. Uses local socket auth (trust by
+# default; set PGPASSWORD when odoo_db_password is configured).
+set -euo pipefail
+
+BACKUP_DIR="{{ odoo_backup_dir }}"
+DB_NAME="{{ odoo_db_name }}"
+DB_USER="{{ odoo_db_user }}"
+PG_DUMP="{{ odoo_postgresql_bin_path }}/pg_dump"
+DATA_DIR="{{ odoo_data_dir }}"
+RETENTION_DAYS="{{ odoo_backup_retention_days | int }}"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+
+# Loopback socket (matches the role's pg_hba entries for the odoo role).
+export PGHOST="{{ odoo_postgresql_socket }}"
+export PGUSER="$DB_USER"
+{% if odoo_db_password | default('') | length > 0 %}
+export PGPASSWORD="{{ odoo_db_password }}"
+{% endif %}
+
+mkdir -p "$BACKUP_DIR"
+umask 077
+
+# 1) Database first (a consistent snapshot of the DB), then the filestore.
+#    Ordering is safe: Odoo filestore objects are content-addressed and
+#    immutable once written.
+"$PG_DUMP" --format=custom --file="$BACKUP_DIR/odoo-db-$STAMP.dump" "$DB_NAME"
+if [ -d "$DATA_DIR/filestore" ]; then
+  tar -C "$DATA_DIR" -czf "$BACKUP_DIR/odoo-filestore-$STAMP.tar.gz" filestore
+fi
+
+# 2) Retention: drop local dumps older than RETENTION_DAYS.
+find "$BACKUP_DIR" -maxdepth 1 -type f \
+  \( -name 'odoo-db-*.dump' -o -name 'odoo-filestore-*.tar.gz' \) \
+  -mtime "+$RETENTION_DAYS" -delete
+
+echo "odoo-backup: dumped $DB_NAME + filestore to $BACKUP_DIR (retention ${RETENTION_DAYS}d)"
