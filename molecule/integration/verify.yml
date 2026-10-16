@@ -1,0 +1,191 @@
+---
+# Verify: assert the real provisioned outcomes on the container.
+#
+# Independent of the role's own tasks/verify.yml (which already ran during
+# converge): re-checks the service state, the database and, above all, the
+# specific fresh-EL9 gaps this scenario exists to reproduce (#4 / PR #5). When
+# ODOO_INTEGRATION_PEPPOL is set the Peppol outcome is asserted too.
+- name: "Verify the provisioned Odoo stack"
+  hosts: "all"
+  become: true
+  gather_facts: true
+  vars:
+    odoo_integration_db_name: "odoo"
+    odoo_integration_db_user: "odoo"
+    odoo_integration_pg_service: "postgresql-16"
+    odoo_integration_pg_socket: "/var/run/postgresql"
+    odoo_integration_pg_bin_dir: "/usr/pgsql-16/bin"
+    odoo_integration_peppol_enabled: >-
+      {{ (lookup('ansible.builtin.env', 'ODOO_INTEGRATION_PEPPOL') | default('false', true)) | bool }}
+  tasks:
+    - name: "Gather the PostgreSQL service state"
+      ansible.builtin.systemd:
+        name: "{{ odoo_integration_pg_service }}"
+      register: "odoo_integration_pg_service_state"
+      changed_when: false
+
+    - name: "Assert PostgreSQL is running"
+      ansible.builtin.assert:
+        that:
+          - "odoo_integration_pg_service_state.status.ActiveState | default('') == 'active'"
+        fail_msg: "PostgreSQL ({{ odoo_integration_pg_service }}) is not active."
+        success_msg: "PostgreSQL is active."
+        quiet: true
+
+    - name: "Gather the Odoo service state"
+      ansible.builtin.systemd:
+        name: "odoo"
+      register: "odoo_integration_odoo_service_state"
+      changed_when: false
+
+    - name: "Assert the Odoo service is present, active and enabled"
+      ansible.builtin.assert:
+        that:
+          - "odoo_integration_odoo_service_state.status.ActiveState | default('') == 'active'"
+          - "odoo_integration_odoo_service_state.status.UnitFileState | default('') == 'enabled'"
+        fail_msg: >-
+          Odoo service is not active/enabled:
+          {{ odoo_integration_odoo_service_state.status | default({}) }}
+        success_msg: "Odoo service is active and enabled."
+        quiet: true
+
+    - name: "Check the Odoo database exists (peer auth as postgres)"
+      become: true
+      become_user: "postgres"
+      community.postgresql.postgresql_query:
+        db: "postgres"
+        login_unix_socket: "{{ odoo_integration_pg_socket }}"
+        query: "SELECT datname FROM pg_database WHERE datname = '{{ odoo_integration_db_name }}'"
+      register: "odoo_integration_db_query"
+      changed_when: false
+
+    - name: "Assert the Odoo database exists"
+      ansible.builtin.assert:
+        that:
+          - "(odoo_integration_db_query.query_result | length) == 1"
+        fail_msg: "Database {{ odoo_integration_db_name }} does not exist."
+        success_msg: "Database {{ odoo_integration_db_name }} exists."
+        quiet: true
+
+    - name: "Check the dedicated role attributes (gap: comma-separated role_attr_flags)"
+      become: true
+      become_user: "postgres"
+      community.postgresql.postgresql_query:
+        db: "postgres"
+        login_unix_socket: "{{ odoo_integration_pg_socket }}"
+        query: >-
+          SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles
+          WHERE rolname = '{{ odoo_integration_db_user }}'
+      register: "odoo_integration_role_query"
+      changed_when: false
+
+    - name: "Assert the Odoo role is restricted (NOSUPERUSER/NOCREATEDB/NOCREATEROLE)"
+      ansible.builtin.assert:
+        that:
+          - "(odoo_integration_role_query.query_result | length) == 1"
+          - "not (odoo_integration_role_query.query_result[0].rolsuper | bool)"
+          - "not (odoo_integration_role_query.query_result[0].rolcreatedb | bool)"
+          - "not (odoo_integration_role_query.query_result[0].rolcreaterole | bool)"
+        fail_msg: "Odoo role attributes are not the expected restricted set."
+        success_msg: "Odoo role attributes are restricted as configured."
+        quiet: true
+
+    - name: "Connect over loopback TCP as the Odoo role (gap: live pg_hba reload)"
+      community.postgresql.postgresql_query:
+        db: "{{ odoo_integration_db_name }}"
+        login_host: "127.0.0.1"
+        login_port: 5432
+        login_user: "{{ odoo_integration_db_user }}"
+        query: "SELECT 1 AS ok"
+      register: "odoo_integration_tcp_query"
+      changed_when: false
+
+    - name: "Assert the live pg_hba allows the Odoo role over loopback TCP"
+      ansible.builtin.assert:
+        that:
+          - "(odoo_integration_tcp_query.query_result | length) == 1"
+        fail_msg: "Could not connect as {{ odoo_integration_db_user }} over 127.0.0.1."
+        success_msg: "pg_hba allows the Odoo role over loopback TCP."
+        quiet: true
+
+    - name: "Check the PostgreSQL log_directory setting (gap: mandatory log_directory)"
+      become: true
+      become_user: "postgres"
+      community.postgresql.postgresql_query:
+        db: "postgres"
+        login_unix_socket: "{{ odoo_integration_pg_socket }}"
+        query: "SHOW log_directory"
+      register: "odoo_integration_logdir_query"
+      changed_when: false
+
+    - name: "Assert log_directory is configured"
+      ansible.builtin.assert:
+        that:
+          - "(odoo_integration_logdir_query.query_result[0].log_directory | default('')) | length > 0"
+        fail_msg: "log_directory is empty; the delegated role requires it."
+        success_msg: "log_directory is configured."
+        quiet: true
+
+    - name: "Check the CRB repository is enabled (gap: PGDG -devel/perl(IPC::Run))"
+      ansible.builtin.command:
+        cmd: "dnf repolist --enabled crb"
+      register: "odoo_integration_crb"
+      changed_when: false
+      failed_when: false
+
+    - name: "Assert the CRB repository is enabled"
+      ansible.builtin.assert:
+        that:
+          - "'crb' in (odoo_integration_crb.stdout | default(''))"
+        fail_msg: "CRB is not enabled; PGDG postgresql16-devel would not resolve."
+        success_msg: "CRB is enabled."
+        quiet: true
+
+    - name: "Gather installed packages"
+      ansible.builtin.package_facts:
+        manager: "rpm"
+
+    - name: "Assert python3-packaging is installed (gap: pip module import)"
+      ansible.builtin.assert:
+        that:
+          - "'python3-packaging' in ansible_facts.packages"
+        fail_msg: "python3-packaging is not installed; the pip module needs it."
+        success_msg: "python3-packaging is installed."
+        quiet: true
+
+    - name: "Check pg_config is present (gap: psycopg2 build)"
+      ansible.builtin.stat:
+        path: "{{ odoo_integration_pg_bin_dir }}/pg_config"
+      register: "odoo_integration_pg_config"
+
+    - name: "Assert pg_config is present and executable"
+      ansible.builtin.assert:
+        that:
+          - "odoo_integration_pg_config.stat.exists | default(false)"
+          - "odoo_integration_pg_config.stat.executable | default(false)"
+        fail_msg: "pg_config is missing from {{ odoo_integration_pg_bin_dir }}."
+        success_msg: "pg_config is present and executable."
+        quiet: true
+
+    - name: "Count the installed Peppol modules (only when Peppol is enabled)"
+      become: true
+      become_user: "postgres"
+      community.postgresql.postgresql_query:
+        db: "{{ odoo_integration_db_name }}"
+        login_unix_socket: "{{ odoo_integration_pg_socket }}"
+        query: >-
+          SELECT count(*) AS installed FROM ir_module_module
+          WHERE name IN ('account_peppol', 'account_edi_ubl_cii')
+          AND state = 'installed'
+      register: "odoo_integration_peppol_modules"
+      changed_when: false
+      when: "odoo_integration_peppol_enabled | bool"
+
+    - name: "Assert the Peppol modules are installed (only when Peppol is enabled)"
+      ansible.builtin.assert:
+        that:
+          - "(odoo_integration_peppol_modules.query_result[0].installed | int) >= 2"
+        fail_msg: "Peppol modules are not all installed."
+        success_msg: "Peppol modules are installed."
+        quiet: true
+      when: "odoo_integration_peppol_enabled | bool"

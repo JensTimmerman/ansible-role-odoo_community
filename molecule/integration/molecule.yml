@@ -1,0 +1,55 @@
+---
+# Molecule scenario: REAL integration provisioning of the odoo role.
+#
+# The container-free `default` scenario is a read-only contract check: it sets
+# every odoo_manage_* phase to false. This scenario is the opposite -- it boots
+# a fresh rockylinux:9 container (the real target) and runs the MUTATING
+# PostgreSQL + Odoo runtime phases, so CI fails exactly where a fresh EL9 host
+# failed (see issue #4 / PR #5).
+#
+# systemd: the role starts PostgreSQL and Odoo through the systemd module.
+# rockylinux:9 ships systemd but does not run it by default, so the container is
+# booted with /usr/sbin/init. systemd needs to own its cgroup namespace and
+# write the cgroup tree, hence `privileged` + the host cgroup mount +
+# cgroupns_mode: host; `env: container=docker` lets systemd trim the units that
+# cannot run inside a container. This is the documented systemd-container
+# recipe (see the molecule docker driver docs).
+dependency:
+  name: "galaxy"
+  enabled: true
+driver:
+  name: "docker"
+platforms:
+  - name: "odoo-integration"
+    image: "rockylinux:9"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+    env:
+      container: "docker"
+    tty: true
+    pre_build_image: true
+provisioner:
+  name: "ansible"
+  playbooks:
+    prepare: "prepare.yml"
+    converge: "converge.yml"
+    verify: "verify.yml"
+verifier:
+  name: "ansible"
+scenario:
+  name: "integration"
+  # Deliberately no `idempotence` step: a second full converge re-clones the
+  # Odoo source and re-resolves the virtualenv, which roughly doubles an
+  # already heavy CI run (source clone + pip build + DB init). The `default`
+  # scenario keeps the cheap contract idempotence check.
+  test_sequence:
+    - "dependency"
+    - "syntax"
+    - "create"
+    - "prepare"
+    - "converge"
+    - "verify"
+    - "destroy"

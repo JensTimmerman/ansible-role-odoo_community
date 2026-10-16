@@ -1,0 +1,33 @@
+---
+# Converge: provision the FULL target on the container.
+#
+# Unlike the `default` scenario, the mutating phases are ENABLED here, so the
+# real fresh-EL9 work happens: PGDG repo + CRB, PostgreSQL server/role/DB with a
+# live pg_hba, and the Odoo source clone + Python virtualenv + systemd service.
+#
+# Peppol is OFF by default. Installing the account module and running the ORM
+# defaults script on top of the full Odoo source build would push a single CI
+# run well past a sensible budget, so this scenario exercises the PostgreSQL +
+# runtime gaps (1-6 in #4) and leaves gap 7 to the flag: export
+# ODOO_INTEGRATION_PEPPOL=true (or set odoo_manage_peppol: true) to also cover
+# the scripts dir + `odoo-bin shell --no-http` path.
+- name: "Converge the odoo role (real PostgreSQL + runtime on rockylinux:9)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+  vars:
+    # Dummy value: the role never ships a master password but requires one.
+    odoo_config_admin_passwd: "integration-not-a-real-secret"
+    odoo_base_url: "https://odoo.integration.example"
+    # The scenario requirements.yml pins geerlingguy.postgresql; delegate to it.
+    odoo_postgresql_role_name: "geerlingguy.postgresql"
+    odoo_manage_postgresql: true
+    odoo_manage_runtime: true
+    odoo_manage_peppol: >-
+      {{ (lookup('ansible.builtin.env', 'ODOO_INTEGRATION_PEPPOL') | default('false', true)) | bool }}
+    odoo_manage_backups: false
+    odoo_run_verify: true
+  tasks:
+    - name: "Apply the odoo role (mutating PostgreSQL + runtime phases enabled)"
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
