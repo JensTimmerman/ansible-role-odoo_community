@@ -81,6 +81,17 @@
     - "odoo"
     - "peppol"
 
+- name: "Ensure the Odoo scripts directory exists"
+  ansible.builtin.file:
+    path: "{{ odoo_scripts_dir }}"
+    state: "directory"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0750"
+  tags:
+    - "odoo"
+    - "peppol"
+
 - name: "Deploy the idempotent Peppol accounting-defaults script"
   ansible.builtin.template:
     src: "peppol-defaults.py.j2"
@@ -100,6 +111,7 @@
       {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin shell
       -c {{ odoo_config_path }}
       --database {{ odoo_db_name }}
+      --no-http
       < {{ odoo_peppol_script_path }}
     chdir: "{{ odoo_base_dir }}"
   environment:

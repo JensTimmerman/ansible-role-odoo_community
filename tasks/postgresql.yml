@@ -62,6 +62,44 @@
     - "odoo"
     - "postgresql"
 
+- name: "Ensure dnf-plugins-core is present (provides dnf config-manager)"
+  ansible.builtin.dnf:
+    name: "dnf-plugins-core"
+    state: "present"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS']"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Check whether the CRB repository is enabled"
+  ansible.builtin.command:
+    cmd: "dnf repolist --enabled crb"
+  register: "odoo_crb_repo"
+  changed_when: false
+  failed_when: false
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS']"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+# PGDG's postgresqlNN-devel depends on perl(IPC::Run), which only ships in
+# CRB; base/AppStream leave CRB disabled, so the depsolve otherwise fails.
+- name: "Enable the CRB repository for PGDG -devel dependencies"
+  ansible.builtin.command:
+    cmd: "dnf config-manager --set-enabled crb"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS']"
+    - "'crb' not in (odoo_crb_repo.stdout | default(''))"
+  changed_when: true
+  tags:
+    - "odoo"
+    - "postgresql"
+
 - name: "Install and configure PostgreSQL for Odoo (PGDG v{{ odoo_postgresql_version }})"
   ansible.builtin.include_role:
     name: "{{ odoo_postgresql_role_name }}"
@@ -79,6 +117,16 @@
     postgresql_hba_entries: "{{ odoo_postgresql_hba_entries }}"
     postgresql_databases: "{{ odoo_postgresql_databases }}"
     postgresql_users: "{{ odoo_postgresql_users }}"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+# The delegated role rewrites pg_hba.conf/postgresql.conf and notifies its
+# restart handler, but play handlers otherwise run only after every task --
+# i.e. after the runtime phase already connected to PostgreSQL, reproducing
+# "no pg_hba.conf entry". Flush now so the new pg_hba is live first.
+- name: "Apply pending PostgreSQL config (flush the delegated role handlers)"
+  ansible.builtin.meta: flush_handlers
   tags:
     - "odoo"
     - "postgresql"
