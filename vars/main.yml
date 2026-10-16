@@ -80,8 +80,16 @@ odoo_postgresql_hba_entries:
     auth_method: "{{ odoo_postgresql_auth_method }}"
 
 # Global postgresql.conf options: bind the listener to loopback only.
+# NOTE: the delegated geerlingguy/ansible-role-postgresql (main) reads a
+# mandatory `log_directory` key out of this list in tasks/variables.yml
+# (`items2dict(...).log_directory`), so keep it present even though the role
+# only needs listen_addresses/unix_socket_directories for hardening. If the
+# postgres role is pinned to a tag predating that requirement and this key is
+# rejected there, the entry is still a valid postgresql.conf setting.
 odoo_postgresql_global_config_options:
   - option: "listen_addresses"
     value: "{{ odoo_postgresql_listen_addresses }}"
   - option: "unix_socket_directories"
     value: "{{ odoo_postgresql_socket }}"
+  - option: "log_directory"
+    value: "log"
