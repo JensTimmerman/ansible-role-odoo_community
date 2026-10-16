@@ -83,8 +83,11 @@ odoo_manage_pgdg_repo: true
 
 # Non-superuser attributes for the dedicated role. Odoo owns its single DB and
 # needs no cluster privileges; list_db=False disables DB creation via the UI,
-# so CREATEDB/CREATEROLE/SUPERUSER stay off.
-odoo_postgresql_role_attr_flags: "NOSUPERUSER NOCREATEDB NOCREATEROLE"
+# so CREATEDB/CREATEROLE/SUPERUSER stay off. The value MUST be comma-separated:
+# community.postgresql.postgresql_user validates each comma-delimited token, so
+# the older space-separated "NOSUPERUSER NOCREATEDB NOCREATEROLE" is rejected
+# as a single invalid flag.
+odoo_postgresql_role_attr_flags: "NOSUPERUSER,NOCREATEDB,NOCREATEROLE"
 
 # Restrict the server to loopback (never 0.0.0.0).
 odoo_postgresql_listen_addresses: "localhost"

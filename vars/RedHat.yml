@@ -8,6 +8,9 @@ odoo_postgresql_packages:
   - "postgresql{{ odoo_postgresql_version }}"
   # contrib ships the unaccent extension control files.
   - "postgresql{{ odoo_postgresql_version }}-contrib"
+  # devel ships pg_config; the venv builds psycopg2 from source and needs it.
+  # It pulls perl(IPC::Run) from the CRB repo (enabled in tasks/postgresql.yml).
+  - "postgresql{{ odoo_postgresql_version }}-devel"
 odoo_postgresql_data_dir: "/var/lib/pgsql/{{ odoo_postgresql_version }}/data"
 odoo_postgresql_bin_path: "/usr/pgsql-{{ odoo_postgresql_version }}/bin"
 odoo_postgresql_config_path: "/var/lib/pgsql/{{ odoo_postgresql_version }}/data"
@@ -20,6 +23,8 @@ odoo_system_packages:
   - "python{{ odoo_python_version }}"
   - "python{{ odoo_python_version }}-devel"
   - "python{{ odoo_python_version }}-pip"
+  # Ansible's pip module imports `packaging` on the target interpreter.
+  - "python3-packaging"
   - "git"
   - "gcc"
   - "gcc-c++"
