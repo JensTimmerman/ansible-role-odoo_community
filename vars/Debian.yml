@@ -16,8 +16,6 @@ odoo_system_packages:
   - "python{{ odoo_python_version }}"
   - "python{{ odoo_python_version }}-venv"
   - "python{{ odoo_python_version }}-dev"
-  # Ansible's pip module imports `packaging` on the target interpreter.
-  - "python3-packaging"
   - "git"
   - "gcc"
   - "g++"
