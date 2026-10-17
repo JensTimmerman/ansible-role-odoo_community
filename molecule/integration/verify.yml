@@ -14,7 +14,11 @@
     odoo_integration_db_user: "odoo"
     odoo_integration_pg_service: "postgresql-16"
     odoo_integration_pg_socket: "/var/run/postgresql"
-    odoo_integration_pg_bin_dir: "/usr/pgsql-16/bin"
+    # PGDG -devel provides /usr/pgsql-16/bin/pg_config on Rocky/Alma/CentOS and
+    # entitled RHEL; on UBI9 the PGDG -devel package is omitted (its public CRB
+    # lacks perl(IPC::Run)) and UBI's libpq-devel provides /usr/bin/pg_config.
+    odoo_integration_pg_bin_dir: >-
+      {{ '/usr/bin' if (odoo_integration_ubi | default(false) | bool) else '/usr/pgsql-16/bin' }}
     odoo_integration_peppol_enabled: >-
       {{ (lookup('ansible.builtin.env', 'ODOO_INTEGRATION_PEPPOL') | default('false', true)) | bool }}
   tasks:
@@ -126,19 +130,23 @@
         success_msg: "log_directory is configured."
         quiet: true
 
-    - name: "Check the CRB repository is enabled (gap: PGDG -devel/perl(IPC::Run))"
+    - name: "List the enabled DNF repositories (gap: PGDG -devel/builder repo)"
       ansible.builtin.command:
-        cmd: "dnf repolist --enabled crb"
-      register: "odoo_integration_crb"
+        cmd: "dnf repolist --enabled"
+      register: "odoo_integration_repos"
       changed_when: false
       failed_when: false
 
-    - name: "Assert the CRB repository is enabled"
+    - name: "Assert the EL9 builder (CRB) repository is enabled"
       ansible.builtin.assert:
         that:
-          - "'crb' in (odoo_integration_crb.stdout | default(''))"
-        fail_msg: "CRB is not enabled; PGDG postgresql16-devel would not resolve."
-        success_msg: "CRB is enabled."
+          - >-
+            ('crb' in (odoo_integration_repos.stdout | default('')))
+            or ('codeready-builder' in (odoo_integration_repos.stdout | default('')))
+        fail_msg: >-
+          Neither 'crb' nor 'codeready-builder' is enabled, so the PGDG
+          postgresql*-devel RPMs (perl(IPC::Run)) would not resolve.
+        success_msg: "The EL9 builder (CRB) repository is enabled."
         quiet: true
 
     - name: "Gather installed packages"

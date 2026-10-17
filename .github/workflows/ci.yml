@@ -55,14 +55,29 @@ jobs:
         working-directory: "${{ github.repository }}"
         run: "molecule test"
 
-  # Real integration: boot a fresh rockylinux:9 container and provision the
-  # mutating PostgreSQL + Odoo runtime phases. The scenario installs its own
-  # pinned role (geerlingguy.postgresql 4.2.0) and collections through molecule's
-  # enabled galaxy dependency, so only the docker driver has to be added here.
+  # Real integration: boot a fresh EL9 container and provision the mutating
+  # PostgreSQL + Odoo runtime phases. Runs on Rocky Linux (builder repo 'crb')
+  # and on Red Hat UBI 9 (RHEL-family codeready-builder repo id; UBI's public
+  # CRB is a subset without perl(IPC::Run), handled by the scenario). The
+  # scenario installs its own pinned role (geerlingguy.postgresql 4.2.0) and
+  # collections through molecule's enabled galaxy dependency.
   integration:
-    name: "molecule (integration scenario, rockylinux:9)"
+    name: "molecule (integration, ${{ matrix.name }})"
     runs-on: "ubuntu-latest"
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "rockylinux9"
+            image: "rockylinux/rockylinux:9"
+            ubi: "false"
+          - name: "ubi9 (rhel family)"
+            image: "registry.access.redhat.com/ubi9/ubi"
+            ubi: "true"
+    env:
+      MOLECULE_ODOO_IMAGE: "${{ matrix.image }}"
+      ODOO_INTEGRATION_UBI: "${{ matrix.ubi }}"
     steps:
       - name: "Check out the repository"
         uses: "actions/checkout@v4"
@@ -94,6 +109,6 @@ jobs:
           echo "ansible-galaxy collection install failed after 3 attempts" >&2
           exit 1
 
-      - name: "Run the integration scenario (docker: rockylinux:9)"
+      - name: "Run the integration scenario (docker: ${{ matrix.name }})"
         working-directory: "${{ github.repository }}"
         run: "molecule test -s integration"

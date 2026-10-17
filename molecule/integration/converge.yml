@@ -2,8 +2,9 @@
 # Converge: provision the FULL target on the container.
 #
 # Unlike the `default` scenario, the mutating phases are ENABLED here, so the
-# real fresh-EL9 work happens: PGDG repo + CRB, PostgreSQL server/role/DB with a
-# live pg_hba, and the Odoo source clone + Python virtualenv + systemd service.
+# real fresh-EL9 work happens: PGDG repo + builder repo, PostgreSQL server/role/
+# DB with a live pg_hba, and the Odoo source clone + Python virtualenv + systemd
+# service.
 #
 # Peppol is OFF by default. Installing the account module and running the ORM
 # defaults script on top of the full Odoo source build would push a single CI
@@ -11,7 +12,7 @@
 # runtime gaps (1-6 in #4) and leaves gap 7 to the flag: export
 # ODOO_INTEGRATION_PEPPOL=true (or set odoo_manage_peppol: true) to also cover
 # the scripts dir + `odoo-bin shell --no-http` path.
-- name: "Converge the odoo role (real PostgreSQL + runtime on rockylinux:9)"
+- name: "Converge the odoo role (real PostgreSQL + runtime on EL9)"
   hosts: "all"
   become: true
   gather_facts: true
@@ -28,6 +29,24 @@
     odoo_manage_backups: false
     odoo_run_verify: true
   tasks:
+    # UBI9's *public* repos are a subset of RHEL's and omit two packages the
+    # role's defaults pull in:
+    #   - perl(IPC::Run), required by PGDG postgresql*-devel (its public CRB
+    #     repo is a subset). UBI's base libpq-devel still provides pg_config,
+    #     so the psycopg2 build works without the PGDG -devel RPM.
+    #   - xorg-x11-fonts-75dpi, required by the upstream wkhtmltopdf RPM.
+    # Entitled RHEL 9 and Rocky/Alma/CentOS ship both in their builder/base
+    # repos; only the no-subscription UBI run needs this trim. set_fact
+    # outranks the role's include_vars, so these override vars/RedHat.yml.
+    - name: "Select UBI-compatible packages (public UBI repos are a subset)"
+      ansible.builtin.set_fact:
+        odoo_postgresql_packages:
+          - "postgresql{{ odoo_postgresql_version | default('16') }}-server"
+          - "postgresql{{ odoo_postgresql_version | default('16') }}"
+          - "postgresql{{ odoo_postgresql_version | default('16') }}-contrib"
+        odoo_wkhtmltopdf_packages: []
+      when: "odoo_integration_ubi | default(false) | bool"
+
     - name: "Apply the odoo role (mutating PostgreSQL + runtime phases enabled)"
       ansible.builtin.include_role:
         name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

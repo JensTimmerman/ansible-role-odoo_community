@@ -1,4 +1,5 @@
-# systemd-enabled rockylinux/rockylinux:9 for the integration scenario.
+# systemd-enabled EL9 image for the integration scenario (Rocky or UBI, selected
+# by the platform's `image`).
 #
 # The base image ships the systemd *unit files* (installed by other packages)
 # but not the systemd package itself -- there is no /usr/sbin/init and no
@@ -6,7 +7,7 @@
 # systemd and trim the units that only make sense on a real machine so the
 # container boots cleanly to multi-user.target under /usr/sbin/init. This is the
 # same trimming the well-known systemd container images use.
-FROM rockylinux/rockylinux:9
+FROM {{ item.image }}
 
 ENV container=docker
 
