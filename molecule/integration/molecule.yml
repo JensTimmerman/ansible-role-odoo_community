@@ -40,6 +40,13 @@ platforms:
     tty: true
 provisioner:
   name: "ansible"
+  # The role installs python3.12 for Odoo's venv; pin Ansible to the system
+  # python (3.9) so the community.postgresql modules use the psycopg2 that the
+  # delegated role installs (python3-psycopg2) in both converge and verify.
+  inventory:
+    host_vars:
+      odoo-integration:
+        ansible_python_interpreter: "/usr/bin/python3"
   playbooks:
     prepare: "prepare.yml"
     converge: "converge.yml"
