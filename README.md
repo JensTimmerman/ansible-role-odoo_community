@@ -146,17 +146,28 @@ $ molecule test
 Converge and verify disable all `odoo_manage_*` phases, so the scenario does
 not install packages or start services.
 
-An `integration` scenario (docker driver, `rockylinux/rockylinux:9`) provisions
-the real target: it runs the mutating PostgreSQL + Odoo runtime phases on a
-fresh EL9 container (systemd booted as PID 1; `Dockerfile.j2` builds a
-systemd-enabled image FROM `rockylinux/rockylinux:9`, which ships the unit files
-but not the systemd package) so CI fails exactly where a fresh EL9 host failed.
-The Docker library `rockylinux:9` is deliberately not used: it is stale at 9.3
-and PGDG only carries the major plus recent minors. It pins
-`geerlingguy.postgresql` in
-`molecule/integration/requirements.yml` and asserts the reported fresh-EL9
-outcomes (PG running, Odoo service active, DB + role, live pg_hba, CRB,
-`python3-packaging`, `pg_config`, `log_directory`):
+An `integration` scenario (docker driver) provisions the real target: it runs
+the mutating PostgreSQL + Odoo runtime phases on a fresh EL9 container (systemd
+booted as PID 1; `Dockerfile.j2` builds a systemd-enabled image FROM the
+selected base, which ships the unit files but not the systemd package) so CI
+fails exactly where a fresh EL9 host failed. The base image is parameterised, so
+CI runs the same scenario on:
+
+- **Rocky Linux 9** (`MOLECULE_ODOO_IMAGE=rockylinux/rockylinux:9`, default):
+  builder repo `crb`. The Docker library `rockylinux:9` is deliberately not
+  used: it is stale at 9.3 and PGDG only carries the major plus recent minors.
+- **Red Hat UBI 9** (`MOLECULE_ODOO_IMAGE=registry.access.redhat.com/ubi9/ubi`,
+  `ODOO_INTEGRATION_UBI=true`): RHEL-family builder repo id, no subscription.
+  UBI's public `codeready-builder` repo is a **subset** that does not ship
+  `perl(IPC::Run)`, so the PGDG `postgresql*-devel` RPM cannot install there;
+  the scenario omits it and builds `psycopg2` against UBI's `libpq-devel`
+  (which provides `pg_config`). Entitled RHEL 9 uses
+  `codeready-builder-for-rhel-9-<arch>-rpms`, which does ship `perl(IPC::Run)`.
+
+It pins `geerlingguy.postgresql` in `molecule/integration/requirements.yml` and
+asserts the reported fresh-EL9 outcomes (PG running, Odoo service active,
+DB + role, live pg_hba, builder repo enabled, `python3-packaging`, `pg_config`,
+`log_directory`):
 
 ```console
 $ molecule test -s integration

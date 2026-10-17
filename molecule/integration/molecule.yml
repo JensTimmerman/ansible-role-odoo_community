@@ -3,23 +3,25 @@
 #
 # The container-free `default` scenario is a read-only contract check: it sets
 # every odoo_manage_* phase to false. This scenario is the opposite -- it boots
-# a fresh rockylinux:9 container (the real target) and runs the MUTATING
-# PostgreSQL + Odoo runtime phases, so CI fails exactly where a fresh EL9 host
-# failed (see issue #4 / PR #5).
+# a fresh EL9 container and runs the MUTATING PostgreSQL + Odoo runtime phases,
+# so CI fails exactly where a fresh EL9 host failed (see issue #4 / PR #5).
 #
-# Base image: rockylinux/rockylinux:9 (currently 9.8), not the Docker library
+# The image is parameterised so the same scenario exercises both the
+# Rocky/AlmaLinux/CentOS builder repo ('crb') and the RHEL-family builder repo:
+#   MOLECULE_ODOO_IMAGE=rockylinux/rockylinux:9   (default)
+#   MOLECULE_ODOO_IMAGE=registry.access.redhat.com/ubi9/ubi + ODOO_INTEGRATION_UBI=true
+# The default is rockylinux/rockylinux:9 (currently 9.8), not the Docker library
 # rockylinux:9 which is stale at 9.3 -- PGDG only publishes the major and the
-# recent minors, so a 9.3 releasever 404s every PGDG repo ("No package
-# postgresql16-server available").
+# recent minors, so a 9.3 releasever 404s every PGDG repo.
 #
-# systemd: the role starts PostgreSQL and Odoo through the systemd module. The
-# base image ships systemd *unit files* but not the systemd package itself (no
-# /usr/sbin/init), so Dockerfile.j2 builds a systemd-enabled image FROM
-# rockylinux/rockylinux:9 and the container is booted with /usr/sbin/init.
-# systemd needs to own its cgroup namespace and write the cgroup tree, hence
-# `privileged` + the host cgroup mount + cgroupns_mode: host; `env:
-# container=docker` lets systemd trim the units that cannot run in a container.
-# This is the documented systemd-container recipe (molecule docker driver docs).
+# systemd: the role starts PostgreSQL and Odoo through the systemd module. Both
+# base images ship systemd *unit files* but not the systemd package itself (no
+# /usr/sbin/init), so Dockerfile.j2 builds a systemd-enabled image FROM the
+# selected image and the container is booted with /usr/sbin/init. systemd needs
+# to own its cgroup namespace and write the cgroup tree, hence `privileged` +
+# the host cgroup mount + cgroupns_mode: host; `env: container=docker` lets
+# systemd trim the units that cannot run in a container. This is the documented
+# systemd-container recipe (molecule docker driver docs).
 dependency:
   name: "galaxy"
   enabled: true
@@ -27,7 +29,7 @@ driver:
   name: "docker"
 platforms:
   - name: "odoo-integration"
-    image: "rockylinux/rockylinux:9"
+    image: "${MOLECULE_ODOO_IMAGE:-rockylinux/rockylinux:9}"
     pre_build_image: false
     dockerfile: "Dockerfile.j2"
     command: "/usr/sbin/init"
@@ -47,6 +49,10 @@ provisioner:
     host_vars:
       odoo-integration:
         ansible_python_interpreter: "/usr/bin/python3"
+        # Set by CI for the UBI9 run; the playbooks use it for the UBI-specific
+        # accommodations (UBI's public codeready-builder repo is a subset that
+        # does not ship perl(IPC::Run), so the PGDG -devel package is omitted).
+        odoo_integration_ubi: "${ODOO_INTEGRATION_UBI:-false}"
   playbooks:
     prepare: "prepare.yml"
     converge: "converge.yml"

@@ -27,6 +27,24 @@
         group: "root"
         mode: "0644"
 
+    # UBI9's public repos are a subset of RHEL's. PGDG's postgresql*-devel
+    # RPMs (which need perl(IPC::Run), absent from UBI) declare
+    # "Obsoletes: libpq-devel", so dnf tries to replace UBI's libpq-devel with
+    # one of them and the depsolve fails. Ignore obsoletes on the UBI run so
+    # UBI's own libpq-devel is installed (it provides pg_config); the role also
+    # omits the PGDG -devel package there. Not needed on Rocky/Alma/CentOS or
+    # entitled RHEL, where the builder repo ships perl(IPC::Run).
+    - name: "Ignore dnf obsoletes on UBI (PGDG -devel obsoletes libpq-devel)"
+      ansible.builtin.lineinfile:
+        path: "/etc/dnf/dnf.conf"
+        regexp: '^obsoletes\s*='
+        line: "obsoletes=0"
+        state: "present"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      when: "odoo_integration_ubi | default(false) | bool"
+
     - name: "Wait for the container's systemd to finish booting"
       ansible.builtin.raw: "systemctl is-system-running --wait"
       register: "odoo_integration_systemd"
