@@ -10,8 +10,15 @@ FROM rockylinux/rockylinux:9
 
 ENV container=docker
 
+# RHEL-family images ship /etc/shadow mode 0000. Recent runc no longer gives
+# the setuid 'unix_chkpwd' helper CAP_DAC_OVERRIDE, so pam_unix's account phase
+# cannot read it and every sudo/become fails with "PAM account management
+# error: Authentication service cannot retrieve authentication info". Making
+# the file owner-readable lets real uid 0 read it without that capability.
+# See linux-pam/linux-pam#876 and geerlingguy/docker-rockylinux9-ansible#6.
 RUN dnf -y install systemd \
     && dnf clean all \
+    && chmod 0400 /etc/shadow \
     && ln -sf /usr/lib/systemd/systemd /usr/sbin/init \
     && rm -f /lib/systemd/system/multi-user.target.wants/* \
     && rm -f /etc/systemd/system/*.wants/* \
