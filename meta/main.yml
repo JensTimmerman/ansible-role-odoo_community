@@ -11,9 +11,13 @@ galaxy_info:
   license: "GPL-3.0-or-later"
   min_ansible_version: "2.11"
 
-  # Only EL 9 is tested/validated. Debian/Ubuntu were never tested and the
-  # hardening path uses EL-only tooling (dnf, CRB); do not claim them until
-  # someone actually tests on those platforms.
+  # Only the EL 9 family is tested/validated: Rocky Linux 9 (full provisioning,
+  # CI) and Red Hat UBI 9 (CI; same RHEL-family codeready-builder repo id, but
+  # UBI's public CRB is a subset that lacks perl(IPC::Run) -- see the
+  # molecule/integration scenario for the documented caveat). Entitled RHEL 9
+  # uses codeready-builder-for-rhel-9-<arch>-rpms and is expected to work the
+  # same way. Debian/Ubuntu were never tested and the hardening path uses
+  # EL-only tooling (dnf, builder repo); do not claim them.
   platforms:
     - name: "EL"
       versions:

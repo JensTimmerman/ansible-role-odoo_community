@@ -66,35 +66,60 @@
   ansible.builtin.dnf:
     name: "dnf-plugins-core"
     state: "present"
-  when:
-    - "ansible_os_family == 'RedHat'"
-    - "ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS']"
+  when: "ansible_os_family == 'RedHat'"
   tags:
     - "odoo"
     - "postgresql"
 
-- name: "Check whether the CRB repository is enabled"
+# The builder repository (CRB / CodeReady Builder) ships perl(IPC::Run), which
+# the PGDG postgresql*-devel RPMs require. Its repo id is platform-specific:
+#   Rocky/Alma/CentOS .. crb
+#   RHEL .............. codeready-builder-for-rhel-9-<arch>-rpms
+#   UBI9 .............. ubi-9-codeready-builder-rpms (enabled in the image)
+# RHEL/UBI both report ansible_distribution == "RedHat"; UBI ships its own
+# /etc/yum.repos.d/ubi.repo, RHEL's repos come from subscription-manager.
+- name: "Check for a UBI repository definition (distinguishes UBI9 from RHEL)"
+  ansible.builtin.stat:
+    path: "/etc/yum.repos.d/ubi.repo"
+  register: "odoo_ubi_repo_file"
+  changed_when: false
+  when: "ansible_os_family == 'RedHat'"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Determine the EL9 builder (CRB) repository id"
+  ansible.builtin.set_fact:
+    odoo_builder_repo_id: >-
+      {{ 'crb'
+         if ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS', 'Virt']
+         else (('ubi-' ~ ansible_facts['distribution_major_version'] ~ '-codeready-builder-rpms')
+               if (odoo_ubi_repo_file.stat.exists | default(false))
+               else ('codeready-builder-for-rhel-' ~ ansible_facts['distribution_major_version'] ~ '-' ~ ansible_facts['architecture'] ~ '-rpms')) }}
+  when: "ansible_os_family == 'RedHat'"
+  tags:
+    - "odoo"
+    - "postgresql"
+
+- name: "Check whether the EL9 builder (CRB) repository is enabled"
   ansible.builtin.command:
-    cmd: "dnf repolist --enabled crb"
-  register: "odoo_crb_repo"
+    cmd: "dnf repolist --enabled {{ odoo_builder_repo_id }}"
+  register: "odoo_builder_repo"
   changed_when: false
   failed_when: false
-  when:
-    - "ansible_os_family == 'RedHat'"
-    - "ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS']"
+  when: "ansible_os_family == 'RedHat'"
   tags:
     - "odoo"
     - "postgresql"
 
-# PGDG's postgresqlNN-devel depends on perl(IPC::Run), which only ships in
-# CRB; base/AppStream leave CRB disabled, so the depsolve otherwise fails.
-- name: "Enable the CRB repository for PGDG -devel dependencies"
+# Base/AppStream leave the builder repo disabled, so the PGDG -devel depsolve
+# otherwise fails; UBI enables its builder repo already, so this is a no-op.
+- name: "Enable the EL9 builder (CRB) repository for PGDG -devel dependencies"
   ansible.builtin.command:
-    cmd: "dnf config-manager --set-enabled crb"
+    cmd: "dnf config-manager --set-enabled {{ odoo_builder_repo_id }}"
   when:
     - "ansible_os_family == 'RedHat'"
-    - "ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'CentOS']"
-    - "'crb' not in (odoo_crb_repo.stdout | default(''))"
+    - "odoo_builder_repo_id not in (odoo_builder_repo.stdout | default(''))"
   changed_when: true
   tags:
     - "odoo"
