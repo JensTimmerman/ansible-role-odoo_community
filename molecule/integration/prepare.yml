@@ -14,10 +14,13 @@
       ansible.builtin.raw: "dnf -y install python3 sudo dnf-plugins-core"
       changed_when: false
 
+    # rockylinux:9 ships skip_if_unavailable=False in /etc/dnf/dnf.conf; a
+    # transient metadata fetch failure for ANY enabled PGDG subrepo (the role's
+    # bootstrap RPM enables pgdg14..18) otherwise fails every dnf task.
     - name: "Let dnf skip a temporarily unavailable repo (PGDG ships many subrepos)"
       ansible.builtin.lineinfile:
         path: "/etc/dnf/dnf.conf"
-        insertafter: '^\[main\]'
+        regexp: '^skip_if_unavailable\s*='
         line: "skip_if_unavailable=True"
         state: "present"
         owner: "root"
