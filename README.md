@@ -45,7 +45,8 @@ environment coupling is baked in. Every secret is supplied by the caller.
 - `become: true` (the role installs packages, creates users and manages
   systemd units).
 - The collections `ansible.builtin`, `ansible.posix` and
-  `community.postgresql`.
+  `community.postgresql` (`< 5.0.0`: 5.0.0 removed the `db` alias the role
+  still uses — see `requirements.yml`).
 
 ## Role Variables
 
