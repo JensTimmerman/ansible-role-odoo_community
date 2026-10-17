@@ -145,11 +145,13 @@ $ molecule test
 Converge and verify disable all `odoo_manage_*` phases, so the scenario does
 not install packages or start services.
 
-An `integration` scenario (docker driver, `rockylinux:9`) provisions the real
-target: it runs the mutating PostgreSQL + Odoo runtime phases on a fresh EL9
-container (systemd booted as PID 1; `Dockerfile.j2` builds a systemd-enabled
-image FROM `rockylinux:9`, which ships the unit files but not the systemd
-package) so CI fails exactly where a fresh EL9 host failed. It pins
+An `integration` scenario (docker driver, `rockylinux/rockylinux:9`) provisions
+the real target: it runs the mutating PostgreSQL + Odoo runtime phases on a
+fresh EL9 container (systemd booted as PID 1; `Dockerfile.j2` builds a
+systemd-enabled image FROM `rockylinux/rockylinux:9`, which ships the unit files
+but not the systemd package) so CI fails exactly where a fresh EL9 host failed.
+The Docker library `rockylinux:9` is deliberately not used: it is stale at 9.3
+and PGDG only carries the major plus recent minors. It pins
 `geerlingguy.postgresql` in
 `molecule/integration/requirements.yml` and asserts the reported fresh-EL9
 outcomes (PG running, Odoo service active, DB + role, live pg_hba, CRB,
