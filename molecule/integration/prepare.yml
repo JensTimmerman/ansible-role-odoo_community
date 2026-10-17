@@ -27,6 +27,27 @@
         group: "root"
         mode: "0644"
 
+    # The base image lists an 'sss' NSS module it does not ship; with systemd as
+    # PID 1 that makes PAM account lookups for local users fail ("PAM account
+    # management error ... Authentication service cannot retrieve authentication
+    # info"), which breaks `become` via sudo. Resolve users/groups from files.
+    - name: "Resolve local users/groups from files (no sssd in the container)"
+      ansible.builtin.lineinfile:
+        path: "/etc/nsswitch.conf"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: "present"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      loop:
+        - regexp: '^passwd:'
+          line: "passwd: files"
+        - regexp: '^group:'
+          line: "group: files"
+      loop_control:
+        label: "{{ item.line }}"
+
     - name: "Wait for the container's systemd to finish booting"
       ansible.builtin.raw: "systemctl is-system-running --wait"
       register: "odoo_integration_systemd"
