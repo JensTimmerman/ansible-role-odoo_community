@@ -1,0 +1,24 @@
+# systemd-enabled rockylinux:9 for the integration scenario.
+#
+# The rockylinux:9 base image ships the systemd *unit files* (installed by other
+# packages) but not the systemd package itself -- there is no /usr/sbin/init and
+# no /usr/lib/systemd/systemd, so the role could not manage services. Install
+# systemd and trim the units that only make sense on a real machine so the
+# container boots cleanly to multi-user.target under /usr/sbin/init. This is the
+# same trimming the well-known systemd container images use.
+FROM rockylinux:9
+
+ENV container=docker
+
+RUN dnf -y install systemd \
+    && dnf clean all \
+    && ln -sf /usr/lib/systemd/systemd /usr/sbin/init \
+    && rm -f /lib/systemd/system/multi-user.target.wants/* \
+    && rm -f /etc/systemd/system/*.wants/* \
+    && rm -f /lib/systemd/system/local-fs.target.wants/* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*udev* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+    && rm -f /lib/systemd/system/basic.target.wants/* \
+    && rm -f /lib/systemd/system/anaconda.target.wants/*
+
+CMD ["/usr/sbin/init"]
