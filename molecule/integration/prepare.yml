@@ -14,6 +14,16 @@
       ansible.builtin.raw: "dnf -y install python3 sudo dnf-plugins-core"
       changed_when: false
 
+    - name: "Let dnf skip a temporarily unavailable repo (PGDG ships many subrepos)"
+      ansible.builtin.lineinfile:
+        path: "/etc/dnf/dnf.conf"
+        insertafter: '^\[main\]'
+        line: "skip_if_unavailable=True"
+        state: "present"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+
     - name: "Wait for the container's systemd to finish booting"
       ansible.builtin.raw: "systemctl is-system-running --wait"
       register: "odoo_integration_systemd"
