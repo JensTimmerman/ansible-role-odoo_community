@@ -6,7 +6,7 @@
 # systemd and trim the units that only make sense on a real machine so the
 # container boots cleanly to multi-user.target under /usr/sbin/init. This is the
 # same trimming the well-known systemd container images use.
-FROM rockylinux/rockylinux:9
+FROM rockylinux/rockylinux:10
 
 ENV container=docker
 
