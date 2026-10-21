@@ -16,3 +16,9 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+    # Stay on EL9: RHEL/Rocky/Alma 10 require x86-64-v3, while the target
+    # hosts are x86-64-v2 (e.g. Xeon E5-2690 v2: no AVX2/BMI2). Never propose
+    # the el10 major bump.
+    ignore:
+      - dependency-name: "rockylinux/rockylinux"
+        update-types: ["version-update:semver-major"]
