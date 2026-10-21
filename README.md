@@ -146,21 +146,36 @@ $ molecule test
 Converge and verify disable all `odoo_manage_*` phases, so the scenario does
 not install packages or start services.
 
-An `integration` scenario (docker driver, `rockylinux/rockylinux:9`) provisions
-the real target: it runs the mutating PostgreSQL + Odoo runtime phases on a
-fresh EL9 container (systemd booted as PID 1; `Dockerfile.j2` builds a
-systemd-enabled image FROM `rockylinux/rockylinux:9`, which ships the unit files
-but not the systemd package) so CI fails exactly where a fresh EL9 host failed.
-The Docker library `rockylinux:9` is deliberately not used: it is stale at 9.3
-and PGDG only carries the major plus recent minors. It pins
-`geerlingguy.postgresql` in
-`molecule/integration/requirements.yml` and asserts the reported fresh-EL9
-outcomes (PG running, Odoo service active, DB + role, live pg_hba, CRB,
-`python3-packaging`, `pg_config`, `log_directory`):
+An `integration` scenario (docker driver) provisions the real target: it runs
+the mutating PostgreSQL + Odoo runtime phases on a fresh EL container (systemd
+booted as PID 1) so CI fails exactly where a fresh EL host failed. The base
+image and systemd approach are parameterised, so CI runs the same scenario on:
+
+- **Rocky Linux 9** (`rockylinux/rockylinux:9`): the image ships unit files but
+  not the systemd package, so `Dockerfile.j2` builds a systemd-enabled image.
+  The Docker library `rockylinux:9` is deliberately not used: it is stale at
+  9.3 and PGDG only carries the major plus recent minors.
+- **AlmaLinux 9** (`almalinux/9-init`): systemd as PID 1, native x86-64-v2.
+- **AlmaLinux 10, x86-64-v2** (`almalinux/10-init` pulled as
+  `linux/amd64/v2`): systemd as PID 1.
+
+It pins `geerlingguy.postgresql` in `molecule/integration/requirements.yml` and
+asserts the reported fresh-EL outcomes (PG running, Odoo service active,
+DB + role, live pg_hba, CRB, `python3-packaging`, `pg_config`,
+`log_directory`):
 
 ```console
 $ molecule test -s integration
 ```
+
+**AlmaLinux 10 v2 caveat:** PGDG's EL10 PostgreSQL packages are built for
+**x86-64-v3**. The Alma 10 job runs the v2 image on a v3/v4 CI runner, so the
+v3 packages execute there: it validates the OS/role plumbing (packages, systemd,
+Python venv, Odoo runtime) but **not** that PGDG-PostgreSQL runs on real
+x86-64-v2 hardware (that would need a v3 CPU or v2-built PGDG packages). Real
+v2 validation is done on the dev host, not in CI. On EL10 `python3` is 3.12 and
+there is no `python3.12` package, so the scenario passes
+`odoo_python_version: "3"`.
 
 Peppol is disabled by default (installing the account module on top of the full
 Odoo source build is too heavy for a sane CI budget); set

@@ -55,14 +55,53 @@ jobs:
         working-directory: "${{ github.repository }}"
         run: "molecule test"
 
-  # Real integration: boot a fresh rockylinux:9 container and provision the
-  # mutating PostgreSQL + Odoo runtime phases. The scenario installs its own
-  # pinned role (geerlingguy.postgresql 4.2.0) and collections through molecule's
-  # enabled galaxy dependency, so only the docker driver has to be added here.
+  # Real integration: boot a fresh EL container and provision the mutating
+  # PostgreSQL + Odoo runtime phases across the EL family:
+  #   - rockylinux9    rockylinux/rockylinux:9 (built: adds systemd)
+  #   - almalinux9     almalinux/9-init        (systemd as PID 1, native v2)
+  #   - almalinux10-v2 almalinux/10-init       (systemd as PID 1, pulled v2)
+  # The scenario installs its own pinned role (geerlingguy.postgresql 4.2.0) and
+  # collections through molecule's enabled galaxy dependency.
+  #
+  # AlmaLinux 10 caveat: PGDG's EL10 PostgreSQL packages are built for
+  # x86-64-v3. The almalinux10-v2 job validates the OS/role plumbing on a v2
+  # image on a v3/v4 runner; it does NOT prove PGDG-PostgreSQL runs on real
+  # x86-64-v2 hardware.
   integration:
-    name: "molecule (integration scenario, rockylinux:9)"
+    name: "molecule (integration, ${{ matrix.name }})"
     runs-on: "ubuntu-latest"
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "rockylinux9"
+            image: "rockylinux/rockylinux:9"
+            prebuilt: "false"
+            pull: "false"
+            platform: "linux/amd64"
+            python_version: "3.12"
+          - name: "almalinux9"
+            image: "almalinux/9-init"
+            prebuilt: "true"
+            pull: "true"
+            platform: "linux/amd64"
+            python_version: "3.12"
+          - name: "almalinux10-v2"
+            image: "almalinux/10-init"
+            prebuilt: "true"
+            pull: "true"
+            platform: "linux/amd64/v2"
+            python_version: "3"
+    env:
+      MOLECULE_ODOO_IMAGE: "${{ matrix.image }}"
+      MOLECULE_ODOO_PREBUILT: "${{ matrix.prebuilt }}"
+      MOLECULE_ODOO_PULL: "${{ matrix.pull }}"
+      MOLECULE_ODOO_PLATFORM: "${{ matrix.platform }}"
+      ODOO_INTEGRATION_PYTHON_VERSION: "${{ matrix.python_version }}"
+      # The docker driver exposes `platform`; this also pins pulls/runs so the
+      # AlmaLinux 10 v2 manifest is selected even if a layer is cached.
+      DOCKER_DEFAULT_PLATFORM: "${{ matrix.platform }}"
     steps:
       - name: "Check out the repository"
         uses: "actions/checkout@v7"
@@ -70,7 +109,7 @@ jobs:
           path: "${{ github.repository }}"
 
       - name: "Set up Python"
-        uses: "actions/setup-python@v5"
+        uses: "actions/setup-python@v7"
         with:
           python-version: "3.12"
 
@@ -94,6 +133,6 @@ jobs:
           echo "ansible-galaxy collection install failed after 3 attempts" >&2
           exit 1
 
-      - name: "Run the integration scenario (docker: rockylinux:9)"
+      - name: "Run the integration scenario (docker: ${{ matrix.name }})"
         working-directory: "${{ github.repository }}"
         run: "molecule test -s integration"

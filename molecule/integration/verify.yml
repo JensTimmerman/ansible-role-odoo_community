@@ -141,6 +141,17 @@
         success_msg: "CRB is enabled."
         quiet: true
 
+    # AlmaLinux 10 ships x86-64-v2 and x86-64-v3 image variants whose repo
+    # files differ (the v2 build points the AlmaLinux repos at x86_64_v2).
+    # Assert the v2 manifest was really used when CI asks for linux/amd64/v2.
+    - name: "Assert the AlmaLinux 10 image is the x86-64-v2 build"
+      ansible.builtin.command:
+        cmd: "grep -q 'arch=x86_64_v2' /etc/yum.repos.d/almalinux-crb.repo"
+      changed_when: false
+      when: >-
+        (lookup('ansible.builtin.env', 'MOLECULE_ODOO_PLATFORM') | default('', true))
+        == 'linux/amd64/v2'
+
     - name: "Gather installed packages"
       ansible.builtin.package_facts:
         manager: "rpm"
