@@ -124,6 +124,8 @@
     state: "present"
   environment:
     HOME: "{{ odoo_base_dir }}"
+    # psycopg2 builds from source; pg_config lives outside the non-login PATH.
+    PATH: "{{ odoo_postgresql_bin_path }}:{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
   notify: "Restart odoo"
   tags:
     - "odoo"
@@ -138,6 +140,8 @@
     state: "present"
   environment:
     HOME: "{{ odoo_base_dir }}"
+    # psycopg2 builds from source; pg_config lives outside the non-login PATH.
+    PATH: "{{ odoo_postgresql_bin_path }}:{{ ansible_env.PATH | default('/usr/local/bin:/usr/bin:/bin') }}"
   notify: "Restart odoo"
   tags:
     - "odoo"
