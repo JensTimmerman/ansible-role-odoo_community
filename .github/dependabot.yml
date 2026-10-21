@@ -7,3 +7,12 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+  # Molecule integration image (rockylinux). NOTE: the tag is the floating
+  # ':9' and the FROM lives in Dockerfile.j2, so Dependabot may not bump it;
+  # it only proposes updates for pinned tags (e.g. ':9.8') / plain Dockerfiles.
+  - package-ecosystem: "docker"
+    directory: "/molecule/integration"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
