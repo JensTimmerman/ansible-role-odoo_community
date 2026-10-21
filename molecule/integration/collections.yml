@@ -1,0 +1,15 @@
+---
+# Scenario-local collection requirements. molecule's galaxy dependency reads
+# this file (the `collections.yml` default) so `molecule test -s integration` is
+# self-contained; these are test-only deps and stay out of the role's own
+# requirements.yml.
+collections:
+  # Used by the role's tasks (postgresql_query / postgresql_ext). Capped below
+  # 5.0.0 for the same reason as requirements.yml (`db` alias removed).
+  - name: "community.postgresql"
+    version: ">=3.0.0,<5.0.0"
+  # Required by the molecule docker driver (connection + create/destroy).
+  - name: "community.docker"
+    version: ">=3.4.11"
+  - name: "ansible.posix"
+    version: ">=1.4.0"

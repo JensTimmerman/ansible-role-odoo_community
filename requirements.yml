@@ -1,5 +1,9 @@
 ---
 # Collections required by the odoo_community role (used by CI and consumers).
 collections:
+  # community.postgresql 5.0.0 dropped the deprecated `db` alias that the role
+  # still uses for postgresql_ext / postgresql_query (it now requires
+  # `login_db`). Cap below 5.0.0 so a fresh install converges; lift this once
+  # the role's tasks move to `login_db`.
   - name: "community.postgresql"
-    version: ">=3.0.0"
+    version: ">=3.0.0,<5.0.0"
