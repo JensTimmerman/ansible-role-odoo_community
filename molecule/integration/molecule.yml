@@ -36,7 +36,10 @@ platforms:
     image: "${MOLECULE_ODOO_IMAGE:-rockylinux/rockylinux:9}"
     pre_build_image: ${MOLECULE_ODOO_PREBUILT:-false}
     platform: ${MOLECULE_ODOO_PLATFORM:-linux/amd64}
-    pull: true
+    # Pull only registry images (the Alma *-init images). The Rocky image is
+    # built locally as molecule_local/rockylinux/rockylinux:9, so pulling it
+    # would 404.
+    pull: ${MOLECULE_ODOO_PULL:-false}
     dockerfile: "Dockerfile.j2"
     command: "/usr/sbin/init"
     privileged: true
