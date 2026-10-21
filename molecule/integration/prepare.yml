@@ -1,0 +1,37 @@
+---
+# Prepare: make a bare rockylinux:9 container able to run Ansible.
+#
+# The image ships dnf (and a platform python3) but no sudo; the provisioner
+# connects over the docker connection as root, so the first task uses `raw`
+# (no target interpreter required) to install the minimum Ansible needs.
+# Everything after that runs through normal modules.
+- name: "Prepare the container (bootstrap Ansible prerequisites)"
+  hosts: "all"
+  become: false
+  gather_facts: false
+  tasks:
+    - name: "Install python3, sudo and dnf-plugins-core"
+      ansible.builtin.raw: "dnf -y install python3 sudo dnf-plugins-core"
+      changed_when: false
+
+    # rockylinux:9 ships skip_if_unavailable=False in /etc/dnf/dnf.conf; a
+    # transient metadata fetch failure for ANY enabled PGDG subrepo (the role's
+    # bootstrap RPM enables pgdg14..18) otherwise fails every dnf task.
+    - name: "Let dnf skip a temporarily unavailable repo (PGDG ships many subrepos)"
+      ansible.builtin.lineinfile:
+        path: "/etc/dnf/dnf.conf"
+        regexp: '^skip_if_unavailable\s*='
+        line: "skip_if_unavailable=True"
+        state: "present"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+
+    - name: "Wait for the container's systemd to finish booting"
+      ansible.builtin.raw: "systemctl is-system-running --wait"
+      register: "odoo_integration_systemd"
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 2
+      until: "odoo_integration_systemd.stdout in ['running', 'degraded']"

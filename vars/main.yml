@@ -59,6 +59,12 @@ odoo_postgresql_user_base:
 
 # Loopback-only authentication: the odoo role/database can only connect from
 # the local socket or 127.0.0.1 / ::1. postgres itself stays on peer auth.
+#
+# The odoo user must also reach the `postgres` maintenance database over
+# loopback: on startup Odoo 19 always calls db._create_empty_database(), which
+# opens a connection to `postgres` (odoo/cli/server.py) before it can detect
+# that the database already exists. Without these entries a fresh `--init base`
+# dies with "no pg_hba.conf entry for host ::1, user odoo, database postgres".
 odoo_postgresql_hba_entries:
   - type: "local"
     database: "all"
@@ -75,6 +81,16 @@ odoo_postgresql_hba_entries:
     auth_method: "{{ odoo_postgresql_auth_method }}"
   - type: "host"
     database: "{{ odoo_db_name }}"
+    user: "{{ odoo_db_user }}"
+    address: "::1/128"
+    auth_method: "{{ odoo_postgresql_auth_method }}"
+  - type: "host"
+    database: "postgres"
+    user: "{{ odoo_db_user }}"
+    address: "127.0.0.1/32"
+    auth_method: "{{ odoo_postgresql_auth_method }}"
+  - type: "host"
+    database: "postgres"
     user: "{{ odoo_db_user }}"
     address: "::1/128"
     auth_method: "{{ odoo_postgresql_auth_method }}"

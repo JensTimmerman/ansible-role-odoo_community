@@ -35,14 +35,18 @@ environment coupling is baked in. Every secret is supplied by the caller.
   roles:
     - name: geerlingguy.postgresql
       src: geerlingguy.postgresql
+      version: 4.2.0
   ```
 
   and point the role at it with `odoo_postgresql_role_name`. The default is
-  `ansible-role-postgresql` (a thin rename of the same role).
+  `ansible-role-postgresql` (a thin rename of the same role). Pin `4.2.0` (or
+  the matching tag): from `3.4.0` on, the role reads the mandatory
+  `log_directory` key out of `odoo_postgresql_global_config_options`.
 - `become: true` (the role installs packages, creates users and manages
   systemd units).
 - The collections `ansible.builtin`, `ansible.posix` and
-  `community.postgresql`.
+  `community.postgresql` (`< 5.0.0`: 5.0.0 removed the `db` alias the role
+  still uses — see `requirements.yml`).
 
 ## Role Variables
 
@@ -141,6 +145,30 @@ $ molecule test
 
 Converge and verify disable all `odoo_manage_*` phases, so the scenario does
 not install packages or start services.
+
+An `integration` scenario (docker driver, `rockylinux/rockylinux:9`) provisions
+the real target: it runs the mutating PostgreSQL + Odoo runtime phases on a
+fresh EL9 container (systemd booted as PID 1; `Dockerfile.j2` builds a
+systemd-enabled image FROM `rockylinux/rockylinux:9`, which ships the unit files
+but not the systemd package) so CI fails exactly where a fresh EL9 host failed.
+The Docker library `rockylinux:9` is deliberately not used: it is stale at 9.3
+and PGDG only carries the major plus recent minors. It pins
+`geerlingguy.postgresql` in
+`molecule/integration/requirements.yml` and asserts the reported fresh-EL9
+outcomes (PG running, Odoo service active, DB + role, live pg_hba, CRB,
+`python3-packaging`, `pg_config`, `log_directory`):
+
+```console
+$ molecule test -s integration
+```
+
+Peppol is disabled by default (installing the account module on top of the full
+Odoo source build is too heavy for a sane CI budget); set
+`ODOO_INTEGRATION_PEPPOL=true` to also exercise the scripts-dir +
+`odoo-bin shell --no-http` path. The integration scenario skips the idempotence
+step for the same time reason; the `default` scenario keeps it. Because it
+needs a container runtime, it only runs in CI (GitHub `ubuntu-latest` has
+docker).
 
 ## Operator runbook
 
