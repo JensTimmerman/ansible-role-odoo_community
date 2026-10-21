@@ -54,3 +54,46 @@ jobs:
       - name: "Run molecule"
         working-directory: "${{ github.repository }}"
         run: "molecule test"
+
+  # Real integration: boot a fresh rockylinux:9 container and provision the
+  # mutating PostgreSQL + Odoo runtime phases. The scenario installs its own
+  # pinned role (geerlingguy.postgresql 4.2.0) and collections through molecule's
+  # enabled galaxy dependency, so only the docker driver has to be added here.
+  integration:
+    name: "molecule (integration scenario, rockylinux:9)"
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 120
+    steps:
+      - name: "Check out the repository"
+        uses: "actions/checkout@v4"
+        with:
+          path: "${{ github.repository }}"
+
+      - name: "Set up Python"
+        uses: "actions/setup-python@v5"
+        with:
+          python-version: "3.12"
+
+      - name: "Install molecule and the docker driver"
+        run: "pip install molecule molecule-plugins[docker] ansible-core"
+
+      # Pre-install the driver's required collections (community.docker,
+      # ansible.posix) plus the scenario's (community.postgresql). ansible-compat
+      # checks installed paths before calling Galaxy, so this stops molecule's
+      # in-run require_collection from hitting Galaxy (which intermittently
+      # returns a cache entry without 'results'). Retry on the flaky response.
+      - name: "Pre-install the driver + scenario collections"
+        working-directory: "${{ github.repository }}"
+        run: |
+          for i in 1 2 3; do
+            ansible-galaxy collection install -r molecule/integration/collections.yml && exit 0
+            echo "ansible-galaxy attempt ${i} failed; clearing cache and retrying"
+            rm -rf "${HOME}/.ansible/galaxy_cache"
+            sleep 15
+          done
+          echo "ansible-galaxy collection install failed after 3 attempts" >&2
+          exit 1
+
+      - name: "Run the integration scenario (docker: rockylinux:9)"
+        working-directory: "${{ github.repository }}"
+        run: "molecule test -s integration"

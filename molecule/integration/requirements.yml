@@ -1,0 +1,13 @@
+---
+# Scenario-local galaxy requirements (molecule reads this file because the
+# scenario's dependency manager is enabled).
+#
+# geerlingguy.postgresql is pinned to the release that reproduces the real
+# fresh-EL9 behaviour: 4.2.0 is the current tag and its tasks/variables.yml
+# reads a MANDATORY `log_directory` key out of postgresql_global_config_options
+# (the gap fixed in #4 / PR #5). An unpinned install would silently drift and
+# stop reproducing that contract.
+roles:
+  - name: "geerlingguy.postgresql"
+    src: "https://github.com/geerlingguy/ansible-role-postgresql"
+    version: "4.2.0"
