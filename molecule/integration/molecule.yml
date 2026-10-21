@@ -3,23 +3,29 @@
 #
 # The container-free `default` scenario is a read-only contract check: it sets
 # every odoo_manage_* phase to false. This scenario is the opposite -- it boots
-# a fresh rockylinux:9 container (the real target) and runs the MUTATING
-# PostgreSQL + Odoo runtime phases, so CI fails exactly where a fresh EL9 host
-# failed (see issue #4 / PR #5).
+# a fresh EL container and runs the MUTATING PostgreSQL + Odoo runtime phases,
+# so CI fails exactly where a fresh EL host failed (see issue #4 / PR #5).
 #
-# Base image: rockylinux/rockylinux:9 (currently 9.8), not the Docker library
-# rockylinux:9 which is stale at 9.3 -- PGDG only publishes the major and the
-# recent minors, so a 9.3 releasever 404s every PGDG repo ("No package
-# postgresql16-server available").
+# The image and systemd approach are parameterised so CI can run one scenario
+# across the EL family:
+#   MOLECULE_ODOO_IMAGE      base image
+#   MOLECULE_ODOO_PREBUILT   true when the image already runs systemd as PID 1
+#                            (the AlmaLinux *-init images), so it is not built
+#   MOLECULE_ODOO_PLATFORM   docker --platform (e.g. linux/amd64/v2)
+#   ODOO_INTEGRATION_PYTHON_VERSION  "3.12" on EL9, "3" on EL10 (python3=3.12)
 #
-# systemd: the role starts PostgreSQL and Odoo through the systemd module. The
-# base image ships systemd *unit files* but not the systemd package itself (no
-# /usr/sbin/init), so Dockerfile.j2 builds a systemd-enabled image FROM
-# rockylinux/rockylinux:9 and the container is booted with /usr/sbin/init.
-# systemd needs to own its cgroup namespace and write the cgroup tree, hence
-# `privileged` + the host cgroup mount + cgroupns_mode: host; `env:
-# container=docker` lets systemd trim the units that cannot run in a container.
-# This is the documented systemd-container recipe (molecule docker driver docs).
+# This is a single scenario; the ternary values are interpolated as YAML before
+# parsing, so `pre_build_image` stays a real boolean.
+#
+# CI matrix images:
+#   - rockylinux/rockylinux:9   (built: it ships unit files, not the systemd pkg)
+#   - almalinux/9-init          (prebuilt: systemd as PID 1, native x86-64-v2)
+#   - almalinux/10-init         (prebuilt: systemd as PID 1, pulled linux/amd64/v2)
+#
+# AlmaLinux 10 caveat: PGDG's EL10 PostgreSQL packages are built for x86-64-v3.
+# The Alma 10 v2 job only validates the OS/role plumbing; it does NOT prove
+# PGDG-PostgreSQL runs on real x86-64-v2 hardware (CI runners are v3/v4, so the
+# v3 packages execute there). Real v2 validation is done on the dev host.
 dependency:
   name: "galaxy"
   enabled: true
@@ -27,8 +33,10 @@ driver:
   name: "docker"
 platforms:
   - name: "odoo-integration"
-    image: "rockylinux/rockylinux:9"
-    pre_build_image: false
+    image: "${MOLECULE_ODOO_IMAGE:-rockylinux/rockylinux:9}"
+    pre_build_image: ${MOLECULE_ODOO_PREBUILT:-false}
+    platform: ${MOLECULE_ODOO_PLATFORM:-linux/amd64}
+    pull: true
     dockerfile: "Dockerfile.j2"
     command: "/usr/sbin/init"
     privileged: true
@@ -40,13 +48,16 @@ platforms:
     tty: true
 provisioner:
   name: "ansible"
-  # The role installs python3.12 for Odoo's venv; pin Ansible to the system
-  # python (3.9) so the community.postgresql modules use the psycopg2 that the
-  # delegated role installs (python3-psycopg2) in both converge and verify.
   inventory:
     host_vars:
       odoo-integration:
+        # The role installs python3.12 for Odoo's venv on EL9; pin Ansible to
+        # the system python so the community.postgresql modules use the
+        # psycopg2 that the delegated role installs (python3-psycopg2).
         ansible_python_interpreter: "/usr/bin/python3"
+        # EL10 ships python3 == 3.12 (no python3.12 package); the matrix passes
+        # "3" there so the role uses the unversioned packages/interpreter.
+        odoo_python_version: "${ODOO_INTEGRATION_PYTHON_VERSION:-3.12}"
   playbooks:
     prepare: "prepare.yml"
     converge: "converge.yml"

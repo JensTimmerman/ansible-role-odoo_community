@@ -11,9 +11,12 @@ galaxy_info:
   license: "GPL-3.0-or-later"
   min_ansible_version: "2.11"
 
-  # Only EL 9 is tested/validated. Debian/Ubuntu were never tested and the
-  # hardening path uses EL-only tooling (dnf, CRB); do not claim them until
-  # someone actually tests on those platforms.
+  # Supported/tested target: the EL 9 family (Rocky Linux 9 and AlmaLinux 9).
+  # CI also runs the integration scenario on an AlmaLinux 10 x86-64-v2 image to
+  # validate the OS/role plumbing, but PGDG's EL10 PostgreSQL packages are built
+  # for x86-64-v3: that run does not validate PGDG on real v2 hardware, so EL10
+  # is not claimed as a supported target here. Debian/Ubuntu were never tested
+  # and the hardening path uses EL-only tooling (dnf, CRB); do not claim them.
   platforms:
     - name: "EL"
       versions:

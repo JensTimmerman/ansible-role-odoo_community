@@ -1,10 +1,10 @@
 ---
-# Prepare: make a bare rockylinux:9 container able to run Ansible.
+# Prepare: make a bare EL container able to run Ansible.
 #
-# The image ships dnf (and a platform python3) but no sudo; the provisioner
-# connects over the docker connection as root, so the first task uses `raw`
-# (no target interpreter required) to install the minimum Ansible needs.
-# Everything after that runs through normal modules.
+# The image ships dnf but no sudo; the provisioner connects over the docker
+# connection as root, so the first task uses `raw` (no target interpreter
+# required) to install the minimum Ansible needs. Everything after that runs
+# through normal modules.
 - name: "Prepare the container (bootstrap Ansible prerequisites)"
   hosts: "all"
   become: false
@@ -14,7 +14,19 @@
       ansible.builtin.raw: "dnf -y install python3 sudo dnf-plugins-core"
       changed_when: false
 
-    # rockylinux:9 ships skip_if_unavailable=False in /etc/dnf/dnf.conf; a
+    # RHEL-family images (including the AlmaLinux *-init images, for which we
+    # do not build Dockerfile.j2) ship /etc/shadow mode 0000; with recent runc
+    # pam_unix/sudo/become then fail because the setuid unix_chkpwd helper has
+    # no CAP_DAC_OVERRIDE. Make it owner-readable. Idempotent on Rocky, where
+    # Dockerfile.j2 already did it.
+    - name: "Make /etc/shadow owner-readable for PAM/sudo"
+      ansible.builtin.file:
+        path: "/etc/shadow"
+        owner: "root"
+        group: "root"
+        mode: "0400"
+
+    # EL images ship skip_if_unavailable=False in /etc/dnf/dnf.conf; a
     # transient metadata fetch failure for ANY enabled PGDG subrepo (the role's
     # bootstrap RPM enables pgdg14..18) otherwise fails every dnf task.
     - name: "Let dnf skip a temporarily unavailable repo (PGDG ships many subrepos)"

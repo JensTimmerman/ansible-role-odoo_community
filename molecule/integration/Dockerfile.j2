@@ -1,12 +1,15 @@
-# systemd-enabled rockylinux/rockylinux:9 for the integration scenario.
+# systemd-enabled EL image for the integration scenario.
 #
-# The base image ships the systemd *unit files* (installed by other packages)
-# but not the systemd package itself -- there is no /usr/sbin/init and no
-# /usr/lib/systemd/systemd, so the role could not manage services. Install
+# Used only for images that ship the systemd *unit files* but not the systemd
+# package itself (e.g. rockylinux/rockylinux:9 -- no /usr/sbin/init and no
+# /usr/lib/systemd/systemd), so the role could not manage services. Install
 # systemd and trim the units that only make sense on a real machine so the
 # container boots cleanly to multi-user.target under /usr/sbin/init. This is the
 # same trimming the well-known systemd container images use.
-FROM rockylinux/rockylinux:9
+#
+# Images that already run systemd as PID 1 (the AlmaLinux *-init images) set
+# MOLECULE_ODOO_PREBUILT=true; molecule then skips this build entirely.
+FROM {{ item.image }}
 
 ENV container=docker
 
@@ -16,6 +19,7 @@ ENV container=docker
 # error: Authentication service cannot retrieve authentication info". Making
 # the file owner-readable lets real uid 0 read it without that capability.
 # See linux-pam/linux-pam#876 and geerlingguy/docker-rockylinux9-ansible#6.
+# (prepare.yml applies the same chmod for prebuilt images.)
 RUN dnf -y install systemd \
     && dnf clean all \
     && chmod 0400 /etc/shadow \

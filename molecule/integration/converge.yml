@@ -1,8 +1,8 @@
 ---
-# Converge: provision the FULL target on the container.
+# Converge: provision the FULL target on the container (EL9 or EL10).
 #
 # Unlike the `default` scenario, the mutating phases are ENABLED here, so the
-# real fresh-EL9 work happens: PGDG repo + CRB, PostgreSQL server/role/DB with a
+# real fresh-EL work happens: PGDG repo + CRB, PostgreSQL server/role/DB with a
 # live pg_hba, and the Odoo source clone + Python virtualenv + systemd service.
 #
 # Peppol is OFF by default. Installing the account module and running the ORM
@@ -11,7 +11,7 @@
 # runtime gaps (1-6 in #4) and leaves gap 7 to the flag: export
 # ODOO_INTEGRATION_PEPPOL=true (or set odoo_manage_peppol: true) to also cover
 # the scripts dir + `odoo-bin shell --no-http` path.
-- name: "Converge the odoo role (real PostgreSQL + runtime on rockylinux:9)"
+- name: "Converge the odoo role (real PostgreSQL + runtime on EL)"
   hosts: "all"
   become: true
   gather_facts: true

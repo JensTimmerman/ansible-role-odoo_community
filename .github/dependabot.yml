@@ -7,18 +7,21 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
-  # Molecule integration image (rockylinux). NOTE: the tag is the floating
-  # ':9' and the FROM lives in Dockerfile.j2, so Dependabot may not bump it;
-  # it only proposes updates for pinned tags (e.g. ':9.8') / plain Dockerfiles.
+  # Molecule integration images. NOTE: the image is selected via
+  # MOLECULE_ODOO_IMAGE and FROM lives in Dockerfile.j2, so Dependabot may not
+  # bump these; it only proposes updates for pinned tags / plain Dockerfiles.
   - package-ecosystem: "docker"
     directory: "/molecule/integration"
     schedule:
       interval: "weekly"
     labels:
       - "dependencies"
-    # Stay on EL9: RHEL/Rocky/Alma 10 require x86-64-v3, while the target
-    # hosts are x86-64-v2 (e.g. Xeon E5-2690 v2: no AVX2/BMI2). Never propose
-    # the el10 major bump.
+    # Stay on EL9 where the role is supported: RHEL/Rocky/Alma 10 require
+    # x86-64-v3, while the target hosts are x86-64-v2 (e.g. Xeon E5-2690 v2:
+    # no AVX2/BMI2). Never propose the el10 major bump for the EL9 images.
+    # The AlmaLinux 10 v2 image tracks its own 10 line (CI-only plumbing check).
     ignore:
       - dependency-name: "rockylinux/rockylinux"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "almalinux/9-init"
         update-types: ["version-update:semver-major"]
