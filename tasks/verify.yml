@@ -70,7 +70,7 @@
   become: true
   become_user: "postgres"
   community.postgresql.postgresql_query:
-    db: "postgres"
+    login_db: "postgres"
     login_unix_socket: "{{ odoo_postgresql_socket }}"
     query: "SHOW listen_addresses"
   register: "odoo_verify_listen"
@@ -123,7 +123,7 @@
   become: true
   become_user: "postgres"
   community.postgresql.postgresql_query:
-    db: "{{ odoo_db_name }}"
+    login_db: "{{ odoo_db_name }}"
     login_unix_socket: "{{ odoo_postgresql_socket }}"
     query: >-
       SELECT count(*) AS installed FROM ir_module_module
