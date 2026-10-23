@@ -136,7 +136,7 @@
   become_user: "postgres"
   community.postgresql.postgresql_ext:
     name: "unaccent"
-    db: "{{ odoo_db_name }}"
+    login_db: "{{ odoo_db_name }}"
     login_unix_socket: "{{ odoo_postgresql_socket }}"
     state: "present"
   tags:
