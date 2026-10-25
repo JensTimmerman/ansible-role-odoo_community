@@ -30,6 +30,13 @@ odoo_base_dir: "/opt/odoo"
 odoo_venv_dir: "{{ odoo_base_dir }}/venv"
 odoo_src_dir: "{{ odoo_base_dir }}/odoo"
 
+# Third-party addons: pinned checkouts under odoo_oca_repos_dir, exposed through a
+# symlink allowlist in odoo_extra_addons_dir. Empty = feature off (default).
+odoo_extra_addons_dir: ""
+odoo_oca_repos_dir: "{{ odoo_base_dir }}/oca"
+odoo_oca_repos: []          # [{name, url, commit, licence, modules: [..]}]
+odoo_oca_extra_packages: [] # pip names, resolved by ansible.builtin.pip
+
 # Unprivileged system user/group owning the runtime (no login shell).
 odoo_user: "odoo"
 odoo_group: "odoo"

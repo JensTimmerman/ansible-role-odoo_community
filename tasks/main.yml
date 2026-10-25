@@ -44,6 +44,17 @@
     - "odoo"
     - "runtime"
 
+# Third-party addons between runtime and Peppol: runtime renders odoo.conf
+# (with the extra addons_path entry when configured), then the pinned
+# checkouts + symlink allowlist are put in place, then Peppol may run
+# `odoo-bin -i` against them. Each checkout/link change notifies
+# "Restart odoo", so the service's final state sees the complete tree.
+- name: "Manage third-party (OCA) addons"
+  ansible.builtin.include_tasks: "addons.yml"
+  tags:
+    - "odoo"
+    - "addons"
+
 - name: "Manage Peppol e-invoicing"
   ansible.builtin.include_tasks: "peppol.yml"
   when: "odoo_manage_peppol | bool"

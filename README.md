@@ -70,6 +70,10 @@ in `defaults/main.yml`. The most important ones:
 | `odoo_db_password` | `""` | Empty = loopback trust; set for scram-sha-256. |
 | `odoo_postgresql_version` | `"16"` | PGDG major version. |
 | `odoo_python_version` | `"3.12"` | Virtualenv interpreter. |
+| `odoo_extra_addons_dir` | `""` | Third-party addons dir (third `addons_path` entry); empty disables it. |
+| `odoo_oca_repos_dir` | `{{ odoo_base_dir }}/oca` | Parent dir for the pinned third-party checkouts. |
+| `odoo_oca_repos` | `[]` | Pinned repos: `name`, `url`, `commit`, `licence`, `modules`. |
+| `odoo_oca_extra_packages` | `[]` | pip packages required by the third-party modules. |
 | `odoo_config_admin_passwd` | `""` | **Required** when the runtime is managed. |
 | `odoo_admin_password` | `""` | Odoo **admin user** password; replaces `admin/admin` after DB init. Strongly recommended. |
 | `odoo_admin_user_login` | `admin` | Login whose password is managed. |
@@ -98,6 +102,40 @@ in `defaults/main.yml`. The most important ones:
   trust auth).
 
 No secret is stored in this repository.
+
+### Third-party (OCA) addons
+
+`odoo_extra_addons_dir` is **empty by default**, which keeps `addons_path` at
+exactly the two upstream source trees. Set it (e.g. `/opt/odoo/extra-addons`)
+to add a single, role-managed third `addons_path` entry. The role never points
+Odoo at a wildcard addons root: only modules named in `odoo_oca_repos` are
+exposed, each as a **symlink** from `odoo_extra_addons_dir/<module>` to its
+checkout under `odoo_oca_repos_dir/<repo>/<module>`. A stale link makes the
+play fail loudly; the role never deletes anything for you.
+
+Pin every repository to a full 40-char **commit SHA** with a licence of
+`AGPL-3` or `LGPL-3`:
+
+```yaml
+odoo_extra_addons_dir: "/opt/odoo/extra-addons"
+odoo_oca_repos:
+  - name: "account-financial-reporting"
+    url: "https://github.com/OCA/account-financial-reporting"
+    commit: "0123456789abcdef0123456789abcdef01234567"
+    licence: "AGPL-3"
+    modules:
+      - "account_financial_report"
+```
+
+`depth: 1` is enough while the pin is the branch tip at pin time. Bumping to a
+commit that is **not** the current tip needs `depth: 0` for that repo (a
+shallow clone cannot always fetch an older SHA). The role checks out the
+pinned repos between the runtime and Peppol phases; each checkout or link
+change notifies `Restart odoo`, so the running service always ends up with the
+complete extra-addons tree even on a first run where `odoo.conf` was rendered
+before the clones existed. pip packages those modules need go in
+`odoo_oca_extra_packages` (installed into the role venv next to
+`odoo_venv_extra_packages`).
 
 ## Quick start
 
