@@ -246,6 +246,18 @@ argument_specs:
         default: ""
         description: "Odoo master password (admin_passwd); supply from a vaulted source."
 
+      odoo_admin_password:
+        type: "str"
+        required: false
+        default: ""
+        description: "Odoo admin user password; replaces the default admin/admin after DB init. Supply from a vaulted source."
+
+      odoo_admin_user_login:
+        type: "str"
+        required: false
+        default: "admin"
+        description: "Login of the Odoo admin user whose password is managed."
+
       odoo_manage_postgresql:
         type: "bool"
         required: false

@@ -10,6 +10,7 @@
     - role: "jenstimmerman.odoo_community"
       vars:
         odoo_config_admin_passwd: "example-not-a-real-secret"
+        odoo_admin_password: "example-not-a-real-password"
         odoo_base_url: "https://odoo.example.com"
         odoo_manage_postgresql: false
         odoo_manage_runtime: false

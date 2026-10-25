@@ -210,6 +210,78 @@
     - "odoo"
     - "runtime"
 
+- name: "Warn when the Odoo admin user keeps the default password"
+  ansible.builtin.debug:
+    msg: >-
+      odoo_admin_password is empty: `--init base` leaves the admin user with
+      Odoo's default password. Set odoo_admin_password from a vault.
+  when: "odoo_admin_password | length == 0"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Assert the Odoo admin user password is safe"
+  ansible.builtin.assert:
+    that:
+      - "odoo_admin_password | length >= 12"
+      - "odoo_admin_password != 'admin'"
+    fail_msg: >-
+      odoo_admin_password must be at least 12 characters and must not be
+      'admin'. Supply it from a vaulted source.
+  no_log: true
+  when: "odoo_admin_password | length > 0"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Ensure the Odoo scripts directory exists for the admin password script"
+  ansible.builtin.file:
+    path: "{{ odoo_scripts_dir }}"
+    state: "directory"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0750"
+  when: "odoo_admin_password | length > 0"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Deploy the idempotent admin password script"
+  ansible.builtin.template:
+    src: "odoo-admin-password.py.j2"
+    dest: "{{ odoo_scripts_dir }}/admin-password.py"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0640"
+  when: "odoo_admin_password | length > 0"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Set the Odoo admin user password after database init"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin shell
+    -c {{ odoo_config_path }}
+    --database {{ odoo_db_name }}
+    --no-http
+    < {{ odoo_scripts_dir }}/admin-password.py
+  args:
+    chdir: "{{ odoo_base_dir }}"
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+    ODOO_ADMIN_PASSWORD: "{{ odoo_admin_password }}"
+    ODOO_ADMIN_USER_LOGIN: "{{ odoo_admin_user_login }}"
+  no_log: true
+  register: "odoo_admin_password_result"
+  changed_when: "'admin_password=changed' in odoo_admin_password_result.stdout"
+  when: "odoo_admin_password | length > 0"
+  tags:
+    - "odoo"
+    - "runtime"
+
 - name: "Ensure the Odoo service is enabled and started"
   ansible.builtin.systemd:
     name: "{{ odoo_service_name }}"

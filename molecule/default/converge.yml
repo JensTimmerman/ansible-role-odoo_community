@@ -15,6 +15,7 @@
         name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
       vars:
         odoo_config_admin_passwd: "converge-not-a-real-secret"
+        odoo_admin_password: "converge-not-a-real-password"
         odoo_base_url: "https://odoo.example.com"
         odoo_manage_postgresql: false
         odoo_manage_runtime: false
