@@ -71,6 +71,8 @@ in `defaults/main.yml`. The most important ones:
 | `odoo_postgresql_version` | `"16"` | PGDG major version. |
 | `odoo_python_version` | `"3.12"` | Virtualenv interpreter. |
 | `odoo_config_admin_passwd` | `""` | **Required** when the runtime is managed. |
+| `odoo_admin_password` | `""` | Odoo **admin user** password; replaces `admin/admin` after DB init. Strongly recommended. |
+| `odoo_admin_user_login` | `admin` | Login whose password is managed. |
 | `odoo_manage_postgresql` | `true` | Toggle the PostgreSQL phase. |
 | `odoo_manage_runtime` | `true` | Toggle the runtime phase. |
 | `odoo_manage_peppol` | `true` | Toggle the Peppol phase. |
@@ -82,10 +84,16 @@ in `defaults/main.yml`. The most important ones:
 - `odoo_config_admin_passwd` — the Odoo master password (`admin_passwd`).
   Supply it from a vaulted source; the role never ships a plaintext value and
   fails loudly when it is empty (only when `odoo_manage_runtime` is enabled).
+- `odoo_admin_password` — the Odoo **admin user** password (login `admin`).
+  `--init base` creates `admin/admin` unless this is set. The role replaces it
+  idempotently after DB init; minimum 12 characters and never `admin`. Supply
+  it from a vaulted source; it is distinct from the master password.
 
 ### Secrets
 
 - `odoo_config_admin_passwd` (**required**, supply from a vault).
+- `odoo_admin_password` (**strongly recommended**, supply from a vault; replaces
+  the default `admin/admin` login).
 - `odoo_db_password` (optional; only if you deliberately move off loopback
   trust auth).
 

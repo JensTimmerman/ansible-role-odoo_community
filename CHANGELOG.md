@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo_admin_password` / `odoo_admin_user_login`: after database init, the
+  role replaces Odoo's default `admin/admin` user password idempotently
+  (minimum 12 characters, never `admin`). Supply the password from a vaulted
+  source; it is separate from `odoo_config_admin_passwd` (the master password).
+
 ### Changed
 
 - Relicensed the role to **GPL-3.0-or-later** (the previous permissive

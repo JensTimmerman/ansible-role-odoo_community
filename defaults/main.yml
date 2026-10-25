@@ -158,3 +158,10 @@ odoo_run_verify: true
 # the caller supplies it (e.g. from vaulted inventory). tasks/runtime.yml
 # fails loudly when it is absent.
 odoo_config_admin_passwd: ""
+
+# Odoo admin **user** password (login `admin`). Empty leaves Odoo's default
+# (`admin/admin` after `--init base`), which is unsafe on any reachable host.
+# Set this from a vaulted source; the role replaces the password idempotently
+# after DB init. Must be >= 12 characters and not `admin`.
+odoo_admin_password: ""
+odoo_admin_user_login: "admin"
