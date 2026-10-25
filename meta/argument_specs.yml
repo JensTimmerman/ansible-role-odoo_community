@@ -185,6 +185,36 @@ argument_specs:
         default: ["phonenumbers"]
         description: "Extra pip packages beyond requirements.txt."
 
+      odoo_extra_addons_dir:
+        type: "str"
+        required: false
+        default: ""
+        description: >-
+          Role-managed third-party addons dir exposed as the third addons_path
+          entry. Empty disables the feature (previous-release behaviour).
+
+      odoo_oca_repos_dir:
+        type: "str"
+        required: false
+        default: "{{ odoo_base_dir }}/oca"
+        description: "Parent dir for the pinned third-party git checkouts."
+
+      odoo_oca_repos:
+        type: "list"
+        required: false
+        elements: "dict"
+        default: []
+        description: >-
+          Pinned third-party repositories: name, url, 40-char commit SHA,
+          licence (AGPL-3 or LGPL-3) and the allowlisted modules.
+
+      odoo_oca_extra_packages:
+        type: "list"
+        required: false
+        elements: "str"
+        default: []
+        description: "Extra pip packages required by the third-party modules."
+
       odoo_peppol_modules:
         type: "list"
         required: false

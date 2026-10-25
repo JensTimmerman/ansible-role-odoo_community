@@ -135,7 +135,7 @@
   become: true
   become_user: "{{ odoo_user }}"
   ansible.builtin.pip:
-    name: "{{ odoo_venv_extra_packages }}"
+    name: "{{ (odoo_venv_extra_packages + (odoo_oca_extra_packages | default([]))) | unique }}"
     virtualenv: "{{ odoo_venv_dir }}"
     state: "present"
   environment:

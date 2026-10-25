@@ -151,3 +151,71 @@
     - "odoo"
     - "peppol"
     - "verify"
+
+# --- Third-party (OCA) addons -------------------------------------------------
+# odoo_addons_path is always asserted against the rendered config. The extra
+# dir is only inspected when the feature is configured (default off).
+
+- name: "Assert odoo.conf renders the role-managed addons_path"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (odoo_verify_config_raw.content | b64decode) is search('(?m)^\\s*addons_path\\s*=\\s*'
+        ~ (odoo_addons_path | regex_escape) ~ '\\s*$')
+    fail_msg: >-
+      Rendered addons_path does not match the role-managed list
+      ({{ odoo_addons_path }}).
+    success_msg: "Rendered addons_path matches the role-managed list."
+    quiet: true
+  when: "odoo_verify_config_stat.stat.exists | default(false)"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "List the symlinks in the extra addons dir (read-only)"
+  ansible.builtin.find:
+    paths: "{{ odoo_extra_addons_dir }}"
+    file_type: "link"
+    recurse: true
+    depth: 1
+  register: "odoo_verify_extra_links"
+  check_mode: false
+  changed_when: false
+  when: "odoo_extra_addons_dir | default('') | length > 0"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Stat each allowlisted module manifest (read-only)"
+  ansible.builtin.stat:
+    path: "{{ item.path }}/__manifest__.py"
+  loop: "{{ odoo_verify_extra_links.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: "odoo_verify_extra_manifests"
+  check_mode: false
+  changed_when: false
+  when: "odoo_extra_addons_dir | default('') | length > 0"
+  tags:
+    - "odoo"
+    - "verify"
+
+- name: "Assert the extra addons dir holds exactly the allowlisted modules"
+  ansible.builtin.assert:
+    that:
+      - >-
+        odoo_verify_extra_links.matched | int ==
+        (odoo_oca_repos | map(attribute='modules') | flatten | length)
+      - "odoo_verify_extra_manifests.results | rejectattr('stat.exists') | list | length == 0"
+    fail_msg: >-
+      {{ odoo_extra_addons_dir }} does not contain exactly one resolvable
+      symlink per allowlisted module (expected
+      {{ odoo_oca_repos | map(attribute='modules') | flatten | length }}, found
+      {{ odoo_verify_extra_links.matched }}); every target must be a module
+      directory with __manifest__.py.
+    success_msg: "Extra addons dir matches the allowlist and every target has a manifest."
+    quiet: true
+  when: "odoo_extra_addons_dir | default('') | length > 0"
+  tags:
+    - "odoo"
+    - "verify"

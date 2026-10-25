@@ -27,8 +27,13 @@ odoo_backup_timer_name: "odoo-backup"
 odoo_data_dir: "/var/lib/odoo"
 odoo_log_dir: "/var/log/odoo"
 
-# Addons search path: the two upstream source addons trees.
-odoo_addons_path: "{{ odoo_src_dir }}/addons,{{ odoo_src_dir }}/odoo/addons"
+# Addons search path: the two upstream source addons trees, plus the
+# role-managed third-party dir only when odoo_extra_addons_dir is configured
+# (empty = the exact two-entry path of previous releases).
+odoo_addons_path: >-
+  {{ ([odoo_src_dir ~ '/addons', odoo_src_dir ~ '/odoo/addons'] +
+      ([odoo_extra_addons_dir] if (odoo_extra_addons_dir | default('') | length > 0) else []))
+     | join(',') }}
 
 # --- PostgreSQL (passed to the delegated PostgreSQL role) ------------------
 

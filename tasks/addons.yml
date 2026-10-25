@@ -1,0 +1,171 @@
+---
+# Role: odoo
+# Third-party (OCA) addons: pinned git checkouts under odoo_oca_repos_dir,
+# exposed to Odoo through a symlink allowlist in odoo_extra_addons_dir.
+#
+# Default off: with odoo_extra_addons_dir empty ("") every task in this file is
+# skipped and odoo_addons_path stays the two upstream source trees, exactly as
+# in previous releases. With it set there is exactly one extra entry and only
+# allowlisted modules are reachable -- no wildcard addons root full of unwanted
+# (possibly proprietary) modules.
+#
+# Each repo is pinned to a full 40-char commit SHA (never a branch) and must be
+# AGPL-3 or LGPL-3. A pin that is the branch tip at pin time resolves under
+# `depth: 1`; a later non-tip bump needs `depth: 0` (a shallow clone of an
+# older commit is not guaranteed to be fetchable by SHA).
+#
+# Ordering: tasks/main.yml includes this file between the runtime phase and the
+# Peppol phase. On a first run the runtime renders odoo.conf with the third
+# addons_path entry before the checkouts exist; every task that creates or
+# moves a checkout notifies "Restart odoo", so the service's final state always
+# sees a complete extra-addons tree.
+
+- name: "Validate the third-party addons configuration"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (odoo_extra_addons_dir | length == 0) or
+        ((odoo_extra_addons_dir is abs) and
+        not ((odoo_extra_addons_dir ~ '/') is search('^' ~ (odoo_src_dir | regex_escape) ~ '/')))
+    fail_msg: >-
+      odoo_extra_addons_dir ("{{ odoo_extra_addons_dir }}") must be empty or an
+      absolute path outside odoo_src_dir ({{ odoo_src_dir }}).
+    success_msg: "odoo_extra_addons_dir is empty or a usable absolute path."
+    quiet: true
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Validate every pinned third-party repository entry"
+  ansible.builtin.assert:
+    that:
+      - "item.name is defined and item.name | length > 0"
+      - "item.url is defined and item.url | length > 0"
+      - "item.commit is defined and item.commit is string and item.commit is search('^[0-9a-f]{40}$')"
+      - "item.licence is defined and item.licence in ['AGPL-3', 'LGPL-3']"
+      - "item.modules is defined and item.modules | length > 0"
+    fail_msg: >-
+      odoo_oca_repos entry "{{ item.name | default('<unnamed>') }}" is invalid:
+      it needs a name, a url, a pinned 40-char lowercase commit SHA, a licence
+      of AGPL-3 or LGPL-3, and a non-empty modules list.
+    success_msg: >-
+      odoo_oca_repos entry "{{ item.name | default('<unnamed>') }}" is pinned
+      and licence-clean.
+    quiet: true
+  loop: "{{ odoo_oca_repos }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Reject duplicate module names across third-party repositories"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (odoo_oca_repos | map(attribute='modules') | flatten | length) ==
+        (odoo_oca_repos | map(attribute='modules') | flatten | unique | length)
+    fail_msg: >-
+      odoo_oca_repos allowlists the same module more than once; a module name
+      may appear in only one repository.
+    success_msg: "Third-party module allowlist has no duplicates."
+    quiet: true
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Record the expected number of allowlisted modules"
+  ansible.builtin.set_fact:
+    odoo_oca_module_count: >-
+      {{ odoo_oca_repos | map(attribute='modules') | flatten | length }}
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Create the third-party addons directories"
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "directory"
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+    mode: "0755"
+  loop:
+    - "{{ odoo_oca_repos_dir }}"
+    - "{{ odoo_extra_addons_dir }}"
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Check out the pinned third-party repositories"
+  become: true
+  become_user: "{{ odoo_user }}"
+  ansible.builtin.git:
+    repo: "{{ item.url }}"
+    dest: "{{ odoo_oca_repos_dir }}/{{ item.name }}"
+    version: "{{ item.commit }}"
+    depth: 1
+    force: true
+  environment:
+    HOME: "{{ odoo_base_dir }}"
+  loop: "{{ odoo_oca_repos }}"
+  loop_control:
+    label: "{{ item.name | default('<unnamed>') }}"
+  notify: "Restart odoo"
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Expose allowlisted modules through symlinks"
+  become: true
+  ansible.builtin.file:
+    src: "{{ odoo_oca_repos_dir }}/{{ item.0.name }}/{{ item.1 }}"
+    dest: "{{ odoo_extra_addons_dir }}/{{ item.1 }}"
+    state: "link"
+    force: true
+    owner: "{{ odoo_user }}"
+    group: "{{ odoo_group }}"
+  loop: "{{ odoo_oca_repos | subelements('modules') }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "List the symlinks exposed in the extra addons dir"
+  ansible.builtin.find:
+    paths: "{{ odoo_extra_addons_dir }}"
+    file_type: "link"
+    recurse: true
+    depth: 1
+  register: "odoo_extra_addons_links"
+  changed_when: false
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
+
+- name: "Assert the extra addons dir holds exactly the allowlisted symlinks"
+  ansible.builtin.assert:
+    that:
+      - "odoo_extra_addons_links.matched | int == odoo_oca_module_count | int"
+    fail_msg: >-
+      {{ odoo_extra_addons_dir }} contains {{ odoo_extra_addons_links.matched }}
+      symlinks but {{ odoo_oca_module_count }} are allowlisted. Stale links are
+      never deleted automatically: remove them by hand, or update
+      odoo_oca_repos when the allowlist is meant to change.
+    success_msg: >-
+      {{ odoo_extra_addons_dir }} contains exactly the
+      {{ odoo_oca_module_count }} allowlisted module symlinks.
+    quiet: true
+  when: "odoo_extra_addons_dir | length > 0"
+  tags:
+    - "odoo"
+    - "addons"
