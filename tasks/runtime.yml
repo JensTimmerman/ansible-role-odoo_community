@@ -261,8 +261,8 @@
 - name: "Set the Odoo admin user password after database init"
   become: true
   become_user: "{{ odoo_user }}"
-  ansible.builtin.shell: |
-    set -euo pipefail
+  ansible.builtin.shell: >-
+    set -euo pipefail &&
     {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin shell
     -c {{ odoo_config_path }}
     --database {{ odoo_db_name }}

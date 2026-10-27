@@ -18,6 +18,7 @@
   vars:
     # Dummy value: the role never ships a master password but requires one.
     odoo_config_admin_passwd: "integration-not-a-real-secret"
+    odoo_admin_password: "integration-test-password-123456"
     odoo_base_url: "https://odoo.integration.example"
     # The scenario requirements.yml pins geerlingguy.postgresql; delegate to it.
     odoo_postgresql_role_name: "geerlingguy.postgresql"
