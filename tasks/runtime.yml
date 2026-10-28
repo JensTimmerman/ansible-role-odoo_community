@@ -62,11 +62,35 @@
     - "odoo"
     - "runtime"
 
+- name: "Expose wkhtmltopdf on the odoo user PATH"
+  ansible.builtin.file:
+    src: "/usr/local/bin/wkhtmltopdf"
+    dest: "/usr/bin/wkhtmltopdf"
+    state: "link"
+    force: true
+    owner: "root"
+    group: "root"
+  when: "ansible_os_family == 'RedHat'"
+  tags:
+    - "odoo"
+    - "runtime"
+
 - name: "Install wkhtmltopdf (upstream .deb, not pip)"
   ansible.builtin.apt:
     deb: "{{ item }}"
     state: "present"
   loop: "{{ odoo_wkhtmltopdf_packages }}"
+  when: "ansible_os_family == 'Debian'"
+  tags:
+    - "odoo"
+    - "runtime"
+
+- name: "Expose wkhtmltopdf on the odoo user PATH"
+  ansible.builtin.file:
+    src: "/usr/local/bin/wkhtmltopdf"
+    dest: "/usr/bin/wkhtmltopdf"
+    state: "link"
+    force: true
   when: "ansible_os_family == 'Debian'"
   tags:
     - "odoo"
