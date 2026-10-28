@@ -106,13 +106,14 @@
 - name: "Apply the Peppol accounting defaults (idempotent ORM script)"
   become: true
   become_user: "{{ odoo_user }}"
-  ansible.builtin.shell:
-    cmd: >-
-      {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin shell
-      -c {{ odoo_config_path }}
-      --database {{ odoo_db_name }}
-      --no-http
-      < {{ odoo_peppol_script_path }}
+  ansible.builtin.shell: >-
+    set -euo pipefail &&
+    {{ odoo_venv_dir }}/bin/python {{ odoo_src_dir }}/odoo-bin shell
+    -c {{ odoo_config_path }}
+    --database {{ odoo_db_name }}
+    --no-http
+    < {{ odoo_peppol_script_path }}
+  args:
     chdir: "{{ odoo_base_dir }}"
   environment:
     HOME: "{{ odoo_base_dir }}"
